@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Santelmo Alimentos — OPS</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐔</text></svg>">
+
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+
+  <!-- React 18 -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+
+  <!-- PropTypes (required by Recharts) -->
+  <script src="https://unpkg.com/prop-types@15.8.1/prop-types.min.js"></script>
+  <!-- Recharts -->
+  <script src="https://unpkg.com/recharts@2.10.4/umd/Recharts.js"></script>
+
+  <!-- Babel (JSX transpiler) -->
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <style>
+    html, body { margin:0; padding:0; background:#0a0f14; }
+    #loading-screen {
+      position:fixed; inset:0; background:#0a0f14;
+      display:flex; flex-direction:column; align-items:center; justify-content:center;
+      z-index:9999; gap:16px;
+    }
+    .spinner {
+      width:40px; height:40px; border:3px solid #1e2832;
+      border-top-color:#f0b429; border-radius:50%;
+      animation:spin 0.8s linear infinite;
+    }
+    @keyframes spin { to { transform:rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <!-- Loading screen (shown while React + Firebase initialise) -->
+  <div id="loading-screen">
+    <div style="font-size:36px">🐔</div>
+    <div style="font-family:monospace;font-weight:800;font-size:18px;letter-spacing:3px;color:#f0b429">SANTELMO</div>
+    <div class="spinner"></div>
+    <div id="loading-msg" style="font-family:monospace;font-size:11px;color:#607080;letter-spacing:1px">CONECTANDO AO BANCO DE DADOS...</div>
+  </div>
+
+  <div id="root"></div>
+
+  <script>
+    // ── Firebase Initialization ──────────────────────────────────────────────
+    const firebaseConfig = {
+      apiKey: "AIzaSyDIiV8i7uD0ifGYrtG01rh2kd6RAxzmpXQ",
+      authDomain: "santelmo-alimentos.firebaseapp.com",
+      projectId: "santelmo-alimentos",
+      storageBucket: "santelmo-alimentos.firebasestorage.app",
+      messagingSenderId: "426091041213",
+      appId: "1:426091041213:web:0b83a73b870883c50542d4",
+      measurementId: "G-25VGH6SSZQ"
+    };
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+  </script>
+
+  <script type="text/babel" data-presets="env,react">
+    const { useState, useEffect, useCallback } = React;
+    const {
+      LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid,
+      Tooltip, Legend, ResponsiveContainer, ReferenceLine,
+      AreaChart, Area, ComposedChart,
+    } = Recharts;
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // APP CODE (auto-generated from santelmo_app.jsx)
+    // ─────────────────────────────────────────────────────────────────────────
+const C = {
+  bg:"#0a0f14", panel:"#111820", border:"#1e2832",
+  accent:"#f0b429", green:"#26a641", red:"#e5534b",
+  blue:"#4fa3e0", purple:"#a78bfa", teal:"#2dd4bf",
+  text:"#dce6f0", muted:"#607080", card:"#141c24",
+};
+const CORES = [C.blue,C.green,C.accent,C.purple,C.red,C.teal,"#fb923c","#f472b6","#34d399"];
+
+function today() { return new Date().toISOString().split("T")[0]; }
+function yesterday() { const d = new Date(); d.setDate(d.getDate()-1); return d.toISOString().split("T")[0]; }
+function isSunday(iso) { return new Date(iso+"T12:00:00").getDay() === 0; }
+function diffDays(a, b) { return Math.round((new Date(b+"T12:00:00") - new Date(a+"T12:00:00")) / 86400000); }
+function fmt(iso) { if (!iso) return "—"; const [,m,d] = iso.split("-"); return `${d}/${m}`; }
+function semanas(ch) { return Math.floor((new Date() - new Date(ch+"T12:00:00")) / (7*24*3600*1000)); }
+function idealPos(gen, sem, custom) {
+  const c = custom || CURVAS[gen];
+  if (!c) return null;
+  for (let i = c.length-1; i >= 0; i--) if (c[i][0] <= sem) return c[i][1];
+  return null;
+}
+// helper: update one key in object without computed property syntax
+function upd(obj, key, val) {
+  const r = Object.assign({}, obj);
+  r[key] = val;
+  return r;
+}
+
+const CURVAS = {
+  "H&N":[[19,8],[20,34],[21,55],[22,71.2],[23,82.4],[24,88.8],[25,91.6],[26,92.9],[27,93.6],[28,94.3],[29,94.9],[30,95.3],[31,95.7],[32,96],[33,96.1],[34,96.2],[35,96.2],[36,96.2],[37,96.2],[38,96.2],[39,96.1],[40,96.1],[41,96],[42,96],[43,95.9],[44,95.8],[45,95.8],[46,95.7],[47,95.6],[48,95.5],[49,95.4],[50,95.2],[51,95],[52,94.8],[53,94.6],[54,94.4],[55,94.2],[56,94],[57,93.8],[58,93.6],[59,93.4],[60,93.2],[61,93],[62,92.8],[63,92.6],[64,92.4],[65,92.2],[66,92],[67,91.8],[68,91.6],[69,91.4],[70,91.2],[71,91],[72,90.8],[73,90.6],[74,90.4],[75,90.2],[76,90],[77,89.8],[78,89.6],[79,89.4],[80,89.2],[81,89],[82,88.8]],
+  "Novogen Branca":[[18,0],[19,3],[20,25],[21,60],[22,82],[23,90],[24,92],[25,94],[26,95],[27,95.5],[28,95.8],[29,96],[30,96],[31,96],[32,96],[33,96],[34,96],[35,96],[36,95.9],[37,95.8],[38,95.7],[39,95.6],[40,95.5],[41,95.4],[42,95.2],[43,95],[44,94.8],[45,94.6],[46,94.4],[47,94.2],[48,94],[49,93.8],[50,93.6],[51,93.4],[52,93.2],[53,93],[54,92.8],[55,92.6],[56,92.4],[57,92.2],[58,92],[59,91.8],[60,91.6],[61,91.4],[62,91.2],[63,91],[64,90.8],[65,90.6],[66,90.4],[67,90.2],[68,90]],
+  "Novogen Vermelha":[[19,15.5],[20,41.9],[21,65],[22,82.6],[23,90.2],[24,93.5],[25,94.5],[26,95.2],[27,95.5],[28,95.5],[29,95.5],[30,95.5],[31,95.5],[32,95.5],[33,95.5],[34,95.5],[35,95.5],[36,95.4],[37,95.3],[38,95.1],[39,94.9],[40,94.7],[41,94.5],[42,94.3],[43,94],[44,93.7],[45,93.4],[46,93.1],[47,92.8],[48,92.5],[49,92.2],[50,91.9],[51,91.6],[52,91.3],[53,91],[54,90.7],[55,90.4],[56,90.1],[57,89.8],[58,89.5],[59,89.2]],
+  "Bovans":[[18,3],[19,13.2],[20,44.5],[21,67.6],[22,82.4],[23,91.1],[24,94.8],[25,95.6],[26,96.1],[27,96.4],[28,96.6],[29,96.7],[30,96.8],[31,97],[32,96.9],[33,96.8],[34,96.7],[35,96.6],[36,96.5],[37,96.4],[38,96.2],[39,96.1],[40,95.9],[41,95.8],[42,95.6],[43,95.4],[44,95.3],[45,95.1],[46,94.9],[47,94.7],[48,94.5],[49,94.3],[50,94.1],[51,93.9],[52,93.7],[53,93.5],[54,93.3],[55,93.1],[56,92.9],[57,92.7],[58,92.5],[59,92.3],[60,92.1]],
+};
+const GENETICAS = Object.keys(CURVAS);
+
+const LOTES_INIT = [
+  {id:"Lote 14",chegada:"2024-04-02",genetica:"H&N",  status:"Inativo",encerrado:"2025-12-01",cor:C.muted},
+  {id:"Lote 15",chegada:"2024-08-01",genetica:"H&N",  status:"Ativo",cor:C.blue},
+  {id:"Lote 16",chegada:"2025-01-12",genetica:"Novogen Branca",status:"Ativo",cor:C.green},
+  {id:"Lote 17",chegada:"2025-05-31",genetica:"H&N",  status:"Ativo",cor:C.accent},
+  {id:"Lote 18",chegada:"2025-11-26",genetica:"Bovans",status:"Ativo",cor:C.purple},
+  {id:"Lote 19v",chegada:"2025-11-28",genetica:"Novogen Vermelha",status:"Ativo",cor:C.red},
+];
+// ⚠ ATENÇÃO: Lote 18 em 20/01 (271 mortes) e Lote 14 em 26/02 (70 mortes) — verificar digitação na planilha original
+const PROD_INIT = [
+  {"data":"2026-01-11","Lote 14":69.0,"Lote 15":75.0,"Lote 16":82.0,"Lote 17":82.5},
+  {"data":"2026-01-18","Lote 14":72.5,"Lote 15":76.5,"Lote 16":82.0,"Lote 17":88.0},
+  {"data":"2026-02-01","Lote 14":71.5,"Lote 15":80.0,"Lote 16":83.0,"Lote 17":88.5},
+  {"data":"2026-02-15","Lote 14":71.5,"Lote 15":77.5,"Lote 16":78.0,"Lote 17":88.0},
+];
+const MORT_INIT = [
+  {"data":"2026-01-12","Lote 14":7,"Lote 15":7,"Lote 16":7,"Lote 17":5,"Lote 18":1,"Lote 19v":0,"tempMaxProd":30.7,"tempMinProd":23.6,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":30.7,"tempMinRecria":23.7},
+  {"data":"2026-01-13","Lote 14":5,"Lote 15":5,"Lote 16":5,"Lote 17":7,"Lote 18":1,"Lote 19v":2,"tempMaxProd":29.1,"tempMinProd":23.0,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.2,"tempMinRecria":22.6},
+  {"data":"2026-01-14","Lote 14":6,"Lote 15":6,"Lote 16":9,"Lote 17":4,"Lote 18":1,"Lote 19v":2,"tempMaxProd":30.4,"tempMinProd":23.0,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":30.3,"tempMinRecria":22.6},
+  {"data":"2026-01-15","Lote 14":5,"Lote 15":5,"Lote 16":5,"Lote 17":1,"Lote 18":1,"Lote 19v":1,"tempMaxProd":28.6,"tempMinProd":23.6,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":23.5,"tempMinRecria":28.2},
+  {"data":"2026-01-16","Lote 14":7,"Lote 15":3,"Lote 16":3,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":30.1,"tempMinProd":23.6,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":29.1,"tempMinRecria":23.3},
+  {"data":"2026-01-17","Lote 14":5,"Lote 15":3,"Lote 16":5,"Lote 17":1,"Lote 18":0,"Lote 19v":1,"tempMaxProd":30.5,"tempMinProd":23.0,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":29.5,"tempMinRecria":22.7},
+  {"data":"2026-01-18","Lote 14":4,"Lote 15":4,"Lote 16":7,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":30.0,"tempMinProd":24.2,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":29.4,"tempMinRecria":24.3},
+  {"data":"2026-01-19","Lote 14":7,"Lote 15":3,"Lote 16":7,"Lote 17":1,"Lote 18":0,"Lote 19v":2,"tempMaxProd":30.4,"tempMinProd":22.7,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":30.1,"tempMinRecria":22.3},
+  {"data":"2026-01-20","Lote 14":5,"Lote 15":4,"Lote 16":4,"Lote 17":3,"Lote 18":271,"Lote 19v":14,"tempMaxProd":28.0,"tempMinProd":21.7,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":27.9,"tempMinRecria":20.4},
+  {"data":"2026-01-21","Lote 14":7,"Lote 15":3,"Lote 16":5,"Lote 17":1,"Lote 18":2,"Lote 19v":6,"tempMaxProd":28.9,"tempMinProd":21.2,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.3,"tempMinRecria":19.3},
+  {"data":"2026-01-22","Lote 14":5,"Lote 15":4,"Lote 16":4,"Lote 17":0,"Lote 18":1,"Lote 19v":2,"tempMaxProd":28.4,"tempMinProd":21.6,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.3,"tempMinRecria":20.1},
+  {"data":"2026-01-23","Lote 14":4,"Lote 15":5,"Lote 16":3,"Lote 17":1,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.1,"tempMinProd":21.7,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.4,"tempMinRecria":19.5},
+  {"data":"2026-01-24","Lote 14":5,"Lote 15":7,"Lote 16":5,"Lote 17":0,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.1,"tempMinProd":22.5,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":29.9,"tempMinRecria":21.2},
+  {"data":"2026-01-25","Lote 14":6,"Lote 15":5,"Lote 16":2,"Lote 17":3,"Lote 18":1,"Lote 19v":0,"tempMaxProd":29.3,"tempMinProd":22.9,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":30.2,"tempMinRecria":21.8},
+  {"data":"2026-01-26","Lote 14":5,"Lote 15":6,"Lote 16":7,"Lote 17":1,"Lote 18":0,"Lote 19v":0,"tempMaxProd":30.1,"tempMinProd":23.9,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":30.3,"tempMinRecria":22.4},
+  {"data":"2026-01-27","Lote 14":6,"Lote 15":5,"Lote 16":5,"Lote 17":0,"Lote 18":1,"Lote 19v":0,"tempMaxProd":31.7,"tempMinProd":24.0,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":32.4,"tempMinRecria":24.0},
+  {"data":"2026-01-28","Lote 14":5,"Lote 15":4,"Lote 16":7,"Lote 17":1,"Lote 18":1,"Lote 19v":1,"tempMaxProd":30.7,"tempMinProd":23.5,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":31.7,"tempMinRecria":23.5},
+  {"data":"2026-01-29","Lote 14":4,"Lote 15":5,"Lote 16":6,"Lote 17":0,"Lote 18":6,"Lote 19v":1,"tempMaxProd":30.4,"tempMinProd":23.0,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":31.4,"tempMinRecria":22.0},
+  {"data":"2026-01-30","Lote 14":5,"Lote 15":3,"Lote 16":5,"Lote 17":1,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.7,"tempMinProd":23.0,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.9,"tempMinRecria":22.4},
+  {"data":"2026-01-31","Lote 14":3,"Lote 15":5,"Lote 16":3,"Lote 17":2,"Lote 18":7,"Lote 19v":1,"tempMaxProd":29.9,"tempMinProd":22.8,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":30.4,"tempMinRecria":22.0},
+  {"data":"2026-02-01","Lote 14":5,"Lote 15":6,"Lote 16":3,"Lote 17":0,"Lote 18":0,"Lote 19v":0,"tempMaxProd":28.4,"tempMinProd":23.5,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.4,"tempMinRecria":23.2},
+  {"data":"2026-02-02","Lote 14":3,"Lote 15":3,"Lote 16":5,"Lote 17":1,"Lote 18":0,"Lote 19v":1,"tempMaxProd":28.7,"tempMinProd":23.8,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":27.7,"tempMinRecria":23.4},
+  {"data":"2026-02-03","Lote 14":5,"Lote 15":3,"Lote 16":3,"Lote 17":3,"Lote 18":0,"Lote 19v":2,"tempMaxProd":28.9,"tempMinProd":25.0,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.0,"tempMinRecria":24.7},
+  {"data":"2026-02-04","Lote 14":7,"Lote 15":5,"Lote 16":5,"Lote 17":1,"Lote 18":1,"Lote 19v":1,"tempMaxProd":29.3,"tempMinProd":24.3,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.3,"tempMinRecria":23.9},
+  {"data":"2026-02-05","Lote 14":4,"Lote 15":7,"Lote 16":6,"Lote 17":0,"Lote 18":0,"Lote 19v":4,"tempMaxProd":31.1,"tempMinProd":24.1,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":30.6,"tempMinRecria":24.3},
+  {"data":"2026-02-06","Lote 14":7,"Lote 15":5,"Lote 16":5,"Lote 17":2,"Lote 18":0,"Lote 19v":1,"tempMaxProd":31.1,"tempMinProd":23.1,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":32.1,"tempMinRecria":23.1},
+  {"data":"2026-02-07","Lote 14":9,"Lote 15":7,"Lote 16":7,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":31.1,"tempMinProd":23.9,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":31.8,"tempMinRecria":23.6},
+  {"data":"2026-02-08","Lote 14":5,"Lote 15":5,"Lote 16":5,"Lote 17":3,"Lote 18":0,"Lote 19v":0,"tempMaxProd":28.1,"tempMinProd":24.1,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":29.2,"tempMinRecria":24.2},
+  {"data":"2026-02-09","Lote 14":6,"Lote 15":6,"Lote 16":5,"Lote 17":3,"Lote 18":4,"Lote 19v":0,"tempMaxProd":28.6,"tempMinProd":24.1,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.4,"tempMinRecria":24.0},
+  {"data":"2026-02-10","Lote 14":5,"Lote 15":4,"Lote 16":4,"Lote 17":0,"Lote 18":4,"Lote 19v":0,"tempMaxProd":28.3,"tempMinProd":23.7,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.5,"tempMinRecria":24.2},
+  {"data":"2026-02-11","Lote 14":7,"Lote 15":3,"Lote 16":5,"Lote 17":0,"Lote 18":0,"Lote 19v":1,"tempMaxProd":29.0,"tempMinProd":24.4,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":28.5,"tempMinRecria":24.2},
+  {"data":"2026-02-12","Lote 14":5,"Lote 15":3,"Lote 16":5,"Lote 17":0,"Lote 18":0,"Lote 19v":12,"tempMaxProd":29.9,"tempMinProd":24.8,"tempMaxSolta":0,"tempMinSolta":0,"tempMaxRecria":29.6,"tempMinRecria":24.1},
+  {"data":"2026-02-13","Lote 14":7,"Lote 15":5,"Lote 16":4,"Lote 17":3,"Lote 18":0,"Lote 19v":15,"tempMaxProd":31.2,"tempMinProd":24.8,"tempMaxSolta":31.32,"tempMinSolta":22.1,"tempMaxRecria":31.7,"tempMinRecria":23.8},
+  {"data":"2026-02-14","Lote 14":9,"Lote 15":6,"Lote 16":5,"Lote 17":1,"Lote 18":0,"Lote 19v":0,"tempMaxProd":31.2,"tempMinProd":24.7,"tempMaxSolta":31.7,"tempMinSolta":22.9,"tempMaxRecria":32.0,"tempMinRecria":24.1},
+  {"data":"2026-02-15","Lote 14":5,"Lote 15":5,"Lote 16":7,"Lote 17":1,"Lote 18":0,"Lote 19v":1,"tempMaxProd":31.2,"tempMinProd":25.5,"tempMaxSolta":31.2,"tempMinSolta":23.1,"tempMaxRecria":32.4,"tempMinRecria":24.5},
+  {"data":"2026-02-16","Lote 14":5,"Lote 15":3,"Lote 16":3,"Lote 17":3,"Lote 18":0,"Lote 19v":2,"tempMaxProd":31.4,"tempMinProd":24.8,"tempMaxSolta":32.2,"tempMinSolta":22.4,"tempMaxRecria":32.7,"tempMinRecria":23.6},
+  {"data":"2026-02-17","Lote 14":9,"Lote 15":5,"Lote 16":7,"Lote 17":1,"Lote 18":0,"Lote 19v":1,"tempMaxProd":31.3,"tempMinProd":24.3,"tempMaxSolta":32.8,"tempMinSolta":22.2,"tempMaxRecria":31.3,"tempMinRecria":23.6},
+  {"data":"2026-02-18","Lote 14":5,"Lote 15":4,"Lote 16":5,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":30.2,"tempMinProd":24.0,"tempMaxSolta":28.9,"tempMinSolta":22.3,"tempMaxRecria":30.2,"tempMinRecria":24.0},
+  {"data":"2026-02-19","Lote 14":5,"Lote 15":3,"Lote 16":3,"Lote 17":1,"Lote 18":0,"Lote 19v":2,"tempMaxProd":31.5,"tempMinProd":24.4,"tempMaxSolta":30.4,"tempMinSolta":22.2,"tempMaxRecria":31.9,"tempMinRecria":23.8},
+  {"data":"2026-02-20","Lote 14":6,"Lote 15":5,"Lote 16":5,"Lote 17":0,"Lote 18":0,"Lote 19v":0,"tempMaxProd":31.1,"tempMinProd":24.5,"tempMaxSolta":31.7,"tempMinSolta":21.9,"tempMaxRecria":32.0,"tempMinRecria":23.1},
+  {"data":"2026-02-21","Lote 14":5,"Lote 15":7,"Lote 16":3,"Lote 17":1,"Lote 18":0,"Lote 19v":2,"tempMaxProd":32.3,"tempMinProd":24.8,"tempMaxSolta":30.9,"tempMinSolta":23.4,"tempMaxRecria":31.1,"tempMinRecria":24.6},
+  {"data":"2026-02-22","Lote 14":5,"Lote 15":3,"Lote 16":5,"Lote 17":3,"Lote 18":0,"Lote 19v":0,"tempMaxProd":31.6,"tempMinProd":24.3,"tempMaxSolta":30.1,"tempMinSolta":22.3,"tempMaxRecria":31.3,"tempMinRecria":22.9},
+  {"data":"2026-02-23","Lote 14":7,"Lote 15":5,"Lote 16":5,"Lote 17":3,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.4,"tempMinProd":24.7,"tempMaxSolta":28.5,"tempMinSolta":22.9,"tempMaxRecria":29.4,"tempMinRecria":23.6},
+  {"data":"2026-02-24","Lote 14":11,"Lote 15":7,"Lote 16":3,"Lote 17":0,"Lote 18":0,"Lote 19v":0,"tempMaxProd":30.2,"tempMinProd":24.7,"tempMaxSolta":29.3,"tempMinSolta":23.3,"tempMaxRecria":29.9,"tempMinRecria":24.9},
+  {"data":"2026-02-25","Lote 14":7,"Lote 15":5,"Lote 16":5,"Lote 17":1,"Lote 18":0,"Lote 19v":1,"tempMaxProd":30.2,"tempMinProd":24.7,"tempMaxSolta":29.1,"tempMinSolta":23.3,"tempMaxRecria":30.2,"tempMinRecria":24.1},
+  {"data":"2026-02-26","Lote 14":70,"Lote 15":6,"Lote 16":3,"Lote 17":0,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.5,"tempMinProd":23.7,"tempMaxSolta":29.4,"tempMinSolta":22.7,"tempMaxRecria":29.4,"tempMinRecria":23.0},
+  {"data":"2026-02-27","Lote 14":0,"Lote 15":5,"Lote 16":4,"Lote 17":2,"Lote 18":1,"Lote 19v":2,"tempMaxProd":29.0,"tempMinProd":22.9,"tempMaxSolta":28.0,"tempMinSolta":21.3,"tempMaxRecria":29.1,"tempMinRecria":21.6},
+  {"data":"2026-02-28","Lote 14":0,"Lote 15":5,"Lote 16":3,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":28.1,"tempMinProd":21.7,"tempMaxSolta":28.0,"tempMinSolta":19.0,"tempMaxRecria":28.5,"tempMinRecria":19.7},
+  {"data":"2026-03-01","Lote 14":0,"Lote 15":5,"Lote 16":3,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":27.8,"tempMinProd":21.6,"tempMaxSolta":29.5,"tempMinSolta":19.1,"tempMaxRecria":28.3,"tempMinRecria":19.6},
+  {"data":"2026-03-02","Lote 14":0,"Lote 15":5,"Lote 16":3,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":28.2,"tempMinProd":21.4,"tempMaxSolta":28.2,"tempMinSolta":18.1,"tempMaxRecria":28.7,"tempMinRecria":18.9},
+  {"data":"2026-03-03","Lote 14":0,"Lote 15":3,"Lote 16":5,"Lote 17":0,"Lote 18":1,"Lote 19v":0,"tempMaxProd":29.0,"tempMinProd":21.3,"tempMaxSolta":29.7,"tempMinSolta":18.1,"tempMaxRecria":30.3,"tempMinRecria":19.0},
+  {"data":"2026-03-04","Lote 14":0,"Lote 15":5,"Lote 16":4,"Lote 17":1,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.3,"tempMinProd":21.2,"tempMaxSolta":30.3,"tempMinSolta":18.7,"tempMaxRecria":30.2,"tempMinRecria":19.7},
+  {"data":"2026-03-05","Lote 14":0,"Lote 15":3,"Lote 16":4,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.4,"tempMinProd":20.6,"tempMaxSolta":31.3,"tempMinSolta":17.7,"tempMaxRecria":31.1,"tempMinRecria":18.5},
+  {"data":"2026-03-06","Lote 14":0,"Lote 15":3,"Lote 16":4,"Lote 17":2,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.8,"tempMinProd":23.9,"tempMaxSolta":30.9,"tempMinSolta":21.6,"tempMaxRecria":31.2,"tempMinRecria":23.1},
+  {"data":"2026-03-07","Lote 14":0,"Lote 15":5,"Lote 16":5,"Lote 17":1,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.1,"tempMinProd":23.5,"tempMaxSolta":27.9,"tempMinSolta":22.4,"tempMaxRecria":28.9,"tempMinRecria":23.3},
+  {"data":"2026-03-08","Lote 14":0,"Lote 15":6,"Lote 16":7,"Lote 17":3,"Lote 18":0,"Lote 19v":0,"tempMaxProd":29.9,"tempMinProd":22.7,"tempMaxSolta":31.4,"tempMinSolta":19.7,"tempMaxRecria":31.7,"tempMinRecria":21.3},
+];
+const ENT_INIT = [
+  {"data":"2026-01-12","medio":0,"grande":165,"extra":17,"jumbo":11,"semClass":27,"liquido":8},
+  {"data":"2026-01-14","medio":0,"grande":159,"extra":18,"jumbo":18,"semClass":4,"liquido":2},
+  {"data":"2026-01-15","medio":0,"grande":154,"extra":24,"jumbo":16,"semClass":4,"liquido":3},
+  {"data":"2026-01-16","medio":0,"grande":150,"extra":25,"jumbo":16,"semClass":5,"liquido":4},
+  {"data":"2026-01-17","medio":0,"grande":179,"extra":17,"jumbo":13,"semClass":4,"liquido":3},
+  {"data":"2026-01-19","medio":0,"grande":318,"extra":24,"jumbo":31,"semClass":9,"liquido":4},
+  {"data":"2026-01-20","medio":0,"grande":186,"extra":20,"jumbo":19,"semClass":13,"liquido":2},
+  {"data":"2026-01-21","medio":0,"grande":125,"extra":26,"jumbo":12,"semClass":0,"liquido":3},
+  {"data":"2026-01-22","medio":0,"grande":190,"extra":27,"jumbo":14,"semClass":4,"liquido":2},
+  {"data":"2026-01-23","medio":0,"grande":166,"extra":21,"jumbo":13,"semClass":3,"liquido":2},
+  {"data":"2026-01-24","medio":0,"grande":171,"extra":20,"jumbo":15,"semClass":4,"liquido":3},
+  {"data":"2026-01-26","medio":0,"grande":325,"extra":32,"jumbo":20,"semClass":0,"liquido":7},
+  {"data":"2026-01-27","medio":0,"grande":189,"extra":19,"jumbo":12,"semClass":10,"liquido":3},
+  {"data":"2026-01-28","medio":0,"grande":160,"extra":22,"jumbo":14,"semClass":4,"liquido":3},
+  {"data":"2026-01-29","medio":0,"grande":122,"extra":32,"jumbo":19,"semClass":3,"liquido":2},
+  {"data":"2026-01-30","medio":0,"grande":146,"extra":25,"jumbo":17,"semClass":3,"liquido":2},
+  {"data":"2026-01-31","medio":0,"grande":139,"extra":22,"jumbo":15,"semClass":4,"liquido":3},
+  {"data":"2026-02-01","medio":0,"grande":150,"extra":23,"jumbo":16,"semClass":0,"liquido":0},
+  {"data":"2026-02-02","medio":0,"grande":158,"extra":22,"jumbo":17,"semClass":7,"liquido":3},
+  {"data":"2026-02-03","medio":0,"grande":137,"extra":28,"jumbo":17,"semClass":5,"liquido":3},
+  {"data":"2026-02-04","medio":0,"grande":146,"extra":23,"jumbo":15,"semClass":4,"liquido":2},
+  {"data":"2026-02-05","medio":0,"grande":140,"extra":21,"jumbo":16,"semClass":4,"liquido":2},
+  {"data":"2026-02-06","medio":0,"grande":139,"extra":23,"jumbo":17,"semClass":2,"liquido":3},
+  {"data":"2026-02-07","medio":0,"grande":145,"extra":23,"jumbo":16,"semClass":5,"liquido":3},
+  {"data":"2026-02-09","medio":0,"grande":289,"extra":41,"jumbo":28,"semClass":8,"liquido":5},
+  {"data":"2026-02-10","medio":0,"grande":150,"extra":25,"jumbo":20,"semClass":5,"liquido":3},
+  {"data":"2026-02-11","medio":0,"grande":143,"extra":22,"jumbo":17,"semClass":3,"liquido":2},
+  {"data":"2026-02-12","medio":0,"grande":155,"extra":20,"jumbo":18,"semClass":2,"liquido":2},
+  {"data":"2026-02-13","medio":0,"grande":143,"extra":23,"jumbo":19,"semClass":4,"liquido":3},
+  {"data":"2026-02-14","medio":0,"grande":138,"extra":25,"jumbo":20,"semClass":3,"liquido":2},
+  {"data":"2026-02-16","medio":0,"grande":289,"extra":35,"jumbo":30,"semClass":0,"liquido":5},
+  {"data":"2026-02-17","medio":0,"grande":148,"extra":24,"jumbo":16,"semClass":9,"liquido":5},
+  {"data":"2026-02-18","medio":0,"grande":145,"extra":22,"jumbo":16,"semClass":4,"liquido":3},
+  {"data":"2026-02-19","medio":0,"grande":152,"extra":20,"jumbo":14,"semClass":3,"liquido":3},
+  {"data":"2026-02-20","medio":0,"grande":153,"extra":21,"jumbo":18,"semClass":3,"liquido":3},
+  {"data":"2026-02-21","medio":0,"grande":154,"extra":19,"jumbo":15,"semClass":3,"liquido":4},
+  {"data":"2026-02-24","medio":0,"grande":432,"extra":50,"jumbo":39,"semClass":11,"liquido":7},
+  {"data":"2026-02-25","medio":0,"grande":121,"extra":15,"jumbo":12,"semClass":3,"liquido":6},
+  {"data":"2026-02-26","medio":0,"grande":116,"extra":14,"jumbo":11,"semClass":2,"liquido":7},
+  {"data":"2026-02-27","medio":0,"grande":113,"extra":15,"jumbo":11,"semClass":3,"liquido":3},
+  {"data":"2026-02-28","medio":0,"grande":113,"extra":14,"jumbo":11,"semClass":2,"liquido":3},
+  {"data":"2026-03-02","medio":0,"grande":115,"extra":16,"jumbo":13,"semClass":4,"liquido":4},
+  {"data":"2026-03-03","medio":0,"grande":112,"extra":15,"jumbo":11,"semClass":3,"liquido":2},
+  {"data":"2026-03-04","medio":0,"grande":109,"extra":13,"jumbo":10,"semClass":3,"liquido":2},
+  {"data":"2026-03-05","medio":0,"grande":112,"extra":11,"jumbo":9,"semClass":3,"liquido":3},
+  {"data":"2026-03-06","medio":0,"grande":107,"extra":10,"jumbo":7,"semClass":2,"liquido":2},
+  {"data":"2026-03-07","medio":0,"grande":112,"extra":15,"jumbo":8,"semClass":2,"liquido":2},
+  {"data":"2026-03-09","medio":0,"grande":217,"extra":36,"jumbo":17,"semClass":9,"liquido":4},
+];
+const CHUVA_INIT = [
+  {"data":"2026-01-01","mm":28},{"data":"2026-01-02","mm":20},{"data":"2026-01-10","mm":3},
+  {"data":"2026-01-11","mm":3},{"data":"2026-01-12","mm":30},{"data":"2026-01-13","mm":24},
+  {"data":"2026-01-14","mm":4},{"data":"2026-01-15","mm":12},{"data":"2026-01-17","mm":12},
+  {"data":"2026-01-18","mm":18},{"data":"2026-01-27","mm":20},{"data":"2026-01-29","mm":36},
+  {"data":"2026-02-01","mm":60},{"data":"2026-02-04","mm":10},{"data":"2026-02-09","mm":42},
+  {"data":"2026-02-21","mm":25},{"data":"2026-02-24","mm":25},
+];
+const RACAO_INIT = [
+  {"data":"2026-01-13","lote":"Lote 14","kg":4000},{"data":"2026-01-14","lote":"Lote 14","kg":5000},
+  {"data":"2026-01-14","lote":"Lote 16","kg":7000},{"data":"2026-01-15","lote":"Lote 17","kg":8000},
+  {"data":"2026-01-16","lote":"Lote 18","kg":5000},{"data":"2026-01-16","lote":"Lote 19v","kg":5000},
+  {"data":"2026-01-17","lote":"Lote 18","kg":1000},{"data":"2026-01-17","lote":"Lote 19v","kg":1000},
+  {"data":"2026-01-19","lote":"Lote 15","kg":10000},{"data":"2026-01-20","lote":"Lote 14","kg":8000},
+  {"data":"2026-01-21","lote":"Lote 14","kg":1000},{"data":"2026-01-21","lote":"Lote 16","kg":11000},
+  {"data":"2026-01-21","lote":"Lote 17","kg":4000},{"data":"2026-01-22","lote":"Lote 17","kg":5000},
+  {"data":"2026-01-23","lote":"Lote 18","kg":3000},{"data":"2026-01-23","lote":"Lote 19v","kg":3000},
+  {"data":"2026-01-24","lote":"Lote 18","kg":2000},{"data":"2026-01-24","lote":"Lote 19v","kg":2000},
+  {"data":"2026-01-26","lote":"Lote 18","kg":4000},{"data":"2026-01-26","lote":"Lote 19v","kg":3000},
+  {"data":"2026-01-27","lote":"Lote 14","kg":8000},{"data":"2026-01-28","lote":"Lote 16","kg":12000},
+  {"data":"2026-01-28","lote":"Lote 17","kg":2000},{"data":"2026-01-29","lote":"Lote 15","kg":9000},
+  {"data":"2026-01-29","lote":"Lote 17","kg":5000},{"data":"2026-01-30","lote":"Lote 14","kg":1000},
+  {"data":"2026-01-31","lote":"Lote 18","kg":3000},{"data":"2026-01-31","lote":"Lote 19v","kg":3000},
+  {"data":"2026-02-02","lote":"Lote 16","kg":5000},{"data":"2026-02-02","lote":"Lote 18","kg":2000},
+  {"data":"2026-02-02","lote":"Lote 19v","kg":3000},{"data":"2026-02-03","lote":"Lote 14","kg":5000},
+  {"data":"2026-02-03","lote":"Lote 16","kg":5000},{"data":"2026-02-04","lote":"Lote 15","kg":2000},
+  {"data":"2026-02-05","lote":"Lote 15","kg":4000},{"data":"2026-02-05","lote":"Lote 17","kg":5000},
+  {"data":"2026-02-06","lote":"Lote 14","kg":5000},{"data":"2026-02-07","lote":"Lote 18","kg":1000},
+  {"data":"2026-02-07","lote":"Lote 19v","kg":1000},{"data":"2026-02-09","lote":"Lote 15","kg":5000},
+  {"data":"2026-02-09","lote":"Lote 16","kg":3000},{"data":"2026-02-10","lote":"Lote 14","kg":2000},
+  {"data":"2026-02-10","lote":"Lote 17","kg":5000},{"data":"2026-02-10","lote":"Lote 19v","kg":3000},
+  {"data":"2026-02-11","lote":"Lote 14","kg":3000},{"data":"2026-02-11","lote":"Lote 17","kg":6000},
+  {"data":"2026-02-12","lote":"Lote 15","kg":2000},{"data":"2026-02-12","lote":"Lote 16","kg":5000},
+  {"data":"2026-02-12","lote":"Lote 18","kg":4000},{"data":"2026-02-13","lote":"Lote 14","kg":1000},
+  {"data":"2026-02-13","lote":"Lote 15","kg":5000},{"data":"2026-02-14","lote":"Lote 18","kg":2000},
+  {"data":"2026-02-14","lote":"Lote 19v","kg":2000},{"data":"2026-02-16","lote":"Lote 17","kg":7000},
+  {"data":"2026-02-16","lote":"Lote 18","kg":5000},{"data":"2026-02-17","lote":"Lote 14","kg":8000},
+  {"data":"2026-02-17","lote":"Lote 16","kg":4000},{"data":"2026-02-18","lote":"Lote 15","kg":3000},
+  {"data":"2026-02-18","lote":"Lote 16","kg":6000},{"data":"2026-02-18","lote":"Lote 19v","kg":5000},
+  {"data":"2026-02-19","lote":"Lote 15","kg":5000},{"data":"2026-02-19","lote":"Lote 17","kg":8000},
+  {"data":"2026-02-21","lote":"Lote 14","kg":3000},{"data":"2026-02-23","lote":"Lote 16","kg":2000},
+  {"data":"2026-02-23","lote":"Lote 18","kg":6000},{"data":"2026-02-23","lote":"Lote 19v","kg":4000},
+  {"data":"2026-02-24","lote":"Lote 15","kg":6000},{"data":"2026-02-24","lote":"Lote 16","kg":4000},
+  {"data":"2026-02-25","lote":"Lote 17","kg":5000},{"data":"2026-02-26","lote":"Lote 15","kg":6000},
+  {"data":"2026-02-26","lote":"Lote 16","kg":4000},{"data":"2026-02-27","lote":"Lote 17","kg":6000},
+  {"data":"2026-02-28","lote":"Lote 18","kg":6000},{"data":"2026-02-28","lote":"Lote 19v","kg":2000},
+  {"data":"2026-03-02","lote":"Lote 16","kg":6000},{"data":"2026-03-02","lote":"Lote 17","kg":6000},
+  {"data":"2026-03-03","lote":"Lote 15","kg":6000},
+];
+
+// ─── UI PRIMITIVES ────────────────────────────────────────────────────────────
+function Badge({ children, color = C.accent }) {
+  return (
+    <span style={{display:"inline-block",padding:"2px 7px",borderRadius:4,fontSize:10,fontWeight:700,letterSpacing:.8,backgroundColor:color+"22",color,border:`1px solid ${color}44`,fontFamily:"monospace"}}>
+      {children}
+    </span>
+  );
+}
+function Sec({ title, icon, children, action }) {
+  return (
+    <div style={{marginBottom:22}}>
+      <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",marginBottom:11,paddingBottom:7,borderBottom:`1px solid ${C.border}`}}>
+        <div style={{display:"flex",alignItems:"center",gap:7}}>
+          {icon && <span style={{fontSize:14}}>{icon}</span>}
+          <span style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:11,letterSpacing:2.5,color:C.text}}>{title.toUpperCase()}</span>
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+function Inp({ label, value, onChange, type="text", min, max, step, required, placeholder, error, hint, disabled }) {
+  const [focus, setFocus] = useState(false);
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {label && <label style={{fontSize:10,color:C.muted,fontFamily:"monospace",letterSpacing:1.2}}>{label.toUpperCase()}{required && <span style={{color:C.red}}> *</span>}</label>}
+      <input type={type} value={value} onChange={e => onChange(e.target.value)}
+        min={min} max={max} step={step} placeholder={placeholder} disabled={disabled}
+        onFocus={() => setFocus(true)} onBlur={() => setFocus(false)}
+        style={{background:disabled?C.bg:C.panel,border:`1px solid ${error?C.red:focus?C.accent:C.border}`,borderRadius:6,padding:"8px 10px",color:disabled?C.muted:C.text,fontSize:13,outline:"none",fontFamily:"monospace",width:"100%",boxSizing:"border-box"}}
+      />
+      {error && <span style={{fontSize:10,color:C.red}}>{error}</span>}
+      {hint && !error && <span style={{fontSize:10,color:C.muted}}>{hint}</span>}
+    </div>
+  );
+}
+function Sel({ label, value, onChange, options }) {
+  return (
+    <div style={{display:"flex",flexDirection:"column",gap:4}}>
+      {label && <label style={{fontSize:10,color:C.muted,fontFamily:"monospace",letterSpacing:1.2}}>{label.toUpperCase()}</label>}
+      <select value={value} onChange={e => onChange(e.target.value)}
+        style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:6,padding:"8px 10px",color:C.text,fontSize:13,outline:"none",fontFamily:"monospace",cursor:"pointer"}}>
+        {options.map(o => <option key={o.value} value={o.value} style={{background:C.panel}}>{o.label}</option>)}
+      </select>
+    </div>
+  );
+}
+function Btn({ children, onClick, color = C.accent, variant = "fill", sm, disabled }) {
+  const [hover, setHover] = useState(false);
+  const bg = disabled ? C.border : variant === "fill" ? (hover ? color : color+"dd") : "transparent";
+  return (
+    <button onClick={disabled ? undefined : onClick}
+      onMouseEnter={() => !disabled && setHover(true)} onMouseLeave={() => setHover(false)}
+      style={{background:bg,border:`1px solid ${disabled?C.border:color}`,borderRadius:6,padding:sm?"5px 11px":"8px 18px",color:disabled?C.muted:variant==="fill"?"#000":color,fontWeight:700,fontSize:sm?11:13,cursor:disabled?"not-allowed":"pointer",fontFamily:"monospace",letterSpacing:.8}}>
+      {children}
+    </button>
+  );
+}
+function Toast({ msg, type = "ok", onClose }) {
+  useEffect(() => { const t = setTimeout(onClose, 4000); return () => clearTimeout(t); }, [onClose]);
+  const col = type === "warn" ? C.accent : type === "err" ? C.red : C.green;
+  return (
+    <div style={{position:"fixed",bottom:24,right:24,zIndex:9999,background:col+"1a",border:`1px solid ${col}`,borderRadius:8,padding:"12px 18px",color:col,fontFamily:"monospace",fontSize:13,fontWeight:600,maxWidth:360}}>
+      {type==="warn"?"⚠":type==="err"?"✕":"✓"} {msg}
+    </div>
+  );
+}
+function Modal({ title, children, onClose, wide }) {
+  return (
+    <div style={{position:"fixed",inset:0,background:"#000d",zIndex:9998,display:"flex",alignItems:"center",justifyContent:"center",padding:16,overflowY:"auto"}}>
+      <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:12,padding:22,maxWidth:wide?720:440,width:"100%",maxHeight:"90vh",overflowY:"auto"}}>
+        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:14}}>
+          <b style={{fontFamily:"'Syne',sans-serif",fontSize:14,color:C.accent}}>{title}</b>
+          <button onClick={onClose} style={{background:"none",border:"none",color:C.muted,cursor:"pointer",fontSize:20}}>×</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+}
+function G({ cols = 2, children }) { return <div style={{display:"grid",gridTemplateColumns:`repeat(${cols},1fr)`,gap:11}}>{children}</div>; }
+function TT({ active, payload, label }) {
+  if (!active || !payload || !payload.length) return null;
+  return (
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:8,padding:"9px 13px",fontFamily:"monospace",fontSize:11}}>
+      <p style={{color:C.muted,marginBottom:4}}>{label}</p>
+      {payload.map((p, i) => <p key={i} style={{color:p.color||C.text,margin:"2px 0"}}>{p.name}: <b>{typeof p.value==="number"?p.value.toFixed(1):p.value}</b></p>)}
+    </div>
+  );
+}
+function KPI({ icon, label, value, sub, color = C.accent, alert }) {
+  return (
+    <div style={{background:C.card,border:`1px solid ${alert?color:C.border}`,borderRadius:10,padding:"13px 15px",borderTop:`3px solid ${color}`,position:"relative"}}>
+      <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:5}}>
+        <span style={{fontSize:14}}>{icon}</span>
+        <span style={{color:C.muted,fontSize:10,fontFamily:"monospace",letterSpacing:1}}>{label}</span>
+      </div>
+      <div style={{fontSize:23,fontWeight:800,color,fontFamily:"monospace",lineHeight:1}}>{value}</div>
+      {sub && <div style={{color:C.muted,fontSize:10,marginTop:3}}>{sub}</div>}
+      {alert && <div style={{position:"absolute",top:8,right:8,width:7,height:7,borderRadius:9,background:color,boxShadow:`0 0 6px ${color}`}} />}
+    </div>
+  );
+}
+
+// ─── CORRELAÇÃO ───────────────────────────────────────────────────────────────
+function CorrelacaoChart({ mortData, lotes }) {
+  const ativos = lotes.filter(l => l.status === "Ativo");
+  const dados = mortData.filter(d => d.tempMaxProd > 0).map(d => ({
+    data: fmt(d.data),
+    temp: d.tempMaxProd,
+    mort: ativos.reduce((s, l) => s + (Number(d[l.id]) || 0), 0),
+  }));
+  if (dados.length < 2) return <p style={{color:C.muted,fontSize:12,fontFamily:"monospace"}}>Dados insuficientes.</p>;
+  const mT = dados.reduce((s, d) => s + d.temp, 0) / dados.length;
+  const mM = dados.reduce((s, d) => s + d.mort, 0) / dados.length;
+  const cov = dados.reduce((s, d) => s + (d.temp - mT) * (d.mort - mM), 0) / dados.length;
+  const sT = Math.sqrt(dados.reduce((s, d) => s + (d.temp - mT) ** 2, 0) / dados.length);
+  const sM = Math.sqrt(dados.reduce((s, d) => s + (d.mort - mM) ** 2, 0) / dados.length);
+  const r = sT && sM ? +((cov / (sT * sM)).toFixed(2)) : null;
+  const rCor = r > 0.6 ? C.red : r > 0.3 ? C.accent : C.green;
+  const rLabel = r > 0.6 ? "Correlação FORTE" : r > 0.3 ? "Correlação moderada" : "Correlação fraca";
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"1fr 148px",gap:16,alignItems:"start"}}>
+      <div style={{height:220}}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={dados}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+            <XAxis dataKey="data" tick={{fill:C.muted,fontSize:9}} />
+            <YAxis yAxisId="t" orientation="right" domain={[20,35]} tick={{fill:C.red,fontSize:9}} tickFormatter={v => v+"°"} />
+            <YAxis yAxisId="m" tick={{fill:C.muted,fontSize:9}} />
+            <Tooltip content={<TT />} /><Legend wrapperStyle={{fontFamily:"monospace",fontSize:10}} />
+            <ReferenceLine yAxisId="t" y={32} stroke={C.red} strokeDasharray="4 2" />
+            <Bar yAxisId="m" dataKey="mort" fill={C.red+"55"} name="Mortes" radius={[3,3,0,0]} />
+            <Line yAxisId="t" type="monotone" dataKey="temp" stroke={C.red} strokeWidth={2} dot={{r:3}} name="Temp.Máx(°C)" />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"14px 12px",textAlign:"center"}}>
+        <div style={{fontSize:10,color:C.muted,fontFamily:"monospace",letterSpacing:1,marginBottom:5}}>PEARSON R</div>
+        <div style={{fontSize:38,fontWeight:800,fontFamily:"monospace",color:rCor,lineHeight:1}}>{r !== null ? r : "—"}</div>
+        <div style={{fontSize:10,color:rCor,marginTop:5,fontWeight:700}}>{rLabel}</div>
+        <div style={{marginTop:9,fontSize:10,color:C.muted,lineHeight:1.8}}>
+          <div>Temp média: {mT.toFixed(1)}°C</div>
+          <div>Mort média: {mM.toFixed(1)}/dia</div>
+          <div>N={dados.length}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── CHECKLIST ────────────────────────────────────────────────────────────────
+function ChecklistDiario({ prodData, mortData, entData, racaoData, chuvaData }) {
+  const ref = yesterday();
+  const dom = isSunday(ref);
+  const items = [
+    { label:"Mortalidade",   ok:mortData.some(d => d.data===ref),   icon:"💀", skip:false },
+    { label:"Temperatura",   ok:mortData.some(d => d.data===ref && d.tempMaxProd>0), icon:"🌡️", skip:false },
+    { label:"Entreposto",    ok:dom || entData.some(d => d.data===ref),  icon:"📦", skip:dom },
+    { label:"Produtividade", ok:prodData.some(d => d.data===ref),   icon:"🥚", skip:false },
+    { label:"Chuva",         ok:chuvaData.some(d => d.data===ref),  icon:"🌧️", skip:false },
+    { label:"Ração",         ok:racaoData.some(d => d.data===ref),  icon:"🌾", skip:false },
+  ];
+  const rel = items.filter(i => !i.skip);
+  const done = rel.filter(i => i.ok).length;
+  const bc = done === rel.length ? C.green : done > 3 ? C.accent : C.red;
+  return (
+    <div style={{background:C.card,border:`1px solid ${C.border}`,borderRadius:10,padding:"11px 15px",marginBottom:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:7}}>
+        <span style={{fontFamily:"monospace",fontSize:10,color:C.muted,letterSpacing:1}}>CHECKLIST — {fmt(ref)} (dia anterior){dom?" · DOMINGO":""}</span>
+        <Badge color={bc}>{done}/{rel.length}</Badge>
+      </div>
+      <div style={{display:"flex",gap:5,flexWrap:"wrap"}}>
+        {items.map(c => (
+          <div key={c.label} style={{padding:"4px 9px",borderRadius:5,background:c.skip?C.muted+"11":c.ok?C.green+"1a":C.red+"0a",border:`1px solid ${c.skip?C.muted+"33":c.ok?C.green+"44":C.border}`,fontSize:11,fontFamily:"monospace",color:c.skip?C.muted:c.ok?C.green:C.muted,display:"flex",alignItems:"center",gap:4}}>
+            {c.icon} {c.skip?"(domingo)":c.ok?"✓":""} {c.label}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── DASHBOARD ────────────────────────────────────────────────────────────────
+function Dashboard({ lotes, prodData, mortData, entData, chuvaData }) {
+  const ref = yesterday();
+  const ativos = lotes.filter(l => l.status === "Ativo");
+  const ult = prodData[prodData.length-1];
+  const ultM = mortData[mortData.length-1];
+  const ultE = entData[entData.length-1];
+  const mortSem = mortData.filter(d => diffDays(d.data,ref)<=6 && diffDays(d.data,ref)>=0)
+    .reduce((s,d) => s + ativos.reduce((ss,l) => ss + (Number(d[l.id])||0), 0), 0);
+  const totalCx = ultE ? ultE.grande + ultE.extra + ultE.jumbo + ultE.medio : 0;
+  const chuvaM = chuvaData.filter(d => d.data.startsWith(ref.slice(0,7))).reduce((s,c) => s+c.mm, 0);
+  const diasSP = ult ? diffDays(ult.data, ref) : null;
+  const tempAl = ultM && ultM.tempMaxProd >= 32;
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(140px,1fr))",gap:10,marginBottom:18}}>
+        <KPI icon="🐔" label="Lotes Ativos"    value={ativos.length}           sub="de todos os lotes"              color={C.blue} />
+        <KPI icon="📦" label="Caixas (últ.)"   value={totalCx}                 sub={`Entrada: ${fmt(ultE?.data)}`}  color={C.accent} />
+        <KPI icon="💀" label="Mort. 7 dias"    value={mortSem}                 sub="todos os lotes"                  color={mortSem>30?C.red:C.muted} alert={mortSem>30} />
+        <KPI icon="🌡️" label="Temp. Máx."     value={ultM?.tempMaxProd?`${ultM.tempMaxProd}°`:"—"} sub={fmt(ultM?.data)} color={tempAl?C.red:C.teal} alert={tempAl} />
+        <KPI icon="🌧️" label="Chuva no mês"   value={`${chuvaM}mm`}           sub="mês atual"                       color={C.purple} />
+        <KPI icon="📅" label="Dias s/ prod."   value={diasSP!==null?`${diasSP}d`:"—"} sub={`Última: ${fmt(ult?.data)}`} color={diasSP>7?C.red:C.muted} alert={diasSP>7} />
+      </div>
+      <Sec title="Status dos Lotes" icon="🐔">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:9}}>
+          {ativos.map(l => {
+            const sem = semanas(l.chegada);
+            const fase = l.faseManual || (sem >= 18 ? "PRODUÇÃO" : "RECRIA");
+            const ideal = idealPos(l.genetica, sem, l.curvaCustom);
+            const real = ult ? ult[l.id] : undefined;
+            const diff = (real != null && ideal) ? +(real - ideal).toFixed(1) : null;
+            return (
+              <div key={l.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${l.cor}`,borderRadius:8,padding:"10px 13px"}}>
+                <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:5}}>
+                  <b style={{fontFamily:"monospace",color:C.text,fontSize:12}}>{l.id}</b>
+                  <Badge color={fase==="PRODUÇÃO"?C.green:C.purple}>{fase}</Badge>
+                </div>
+                <div style={{color:C.muted,fontSize:11,fontFamily:"monospace",lineHeight:1.7}}>
+                  <div>{l.genetica}</div>
+                  <div>{sem} semanas</div>
+                  {ideal && <div>Ideal: {ideal}%</div>}
+                  {real != null && <div style={{color:diff>0?C.green:diff<-3?C.red:C.accent,fontWeight:700}}>Real: {real}% {diff!=null?`(${diff>0?"+":""}${diff}%)`:""}</div>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Sec>
+      <Sec title="Produção (%) — Histórico" icon="🥚">
+        <div style={{height:225}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={prodData.map(d => Object.assign({}, d, {data:fmt(d.data)}))}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="data" tick={{fill:C.muted,fontSize:10}} />
+              <YAxis domain={[55,100]} tick={{fill:C.muted,fontSize:10}} tickFormatter={v => v+"%"} />
+              <Tooltip content={<TT />} /><Legend wrapperStyle={{fontFamily:"monospace",fontSize:10}} />
+              {ativos.map(l => <Line key={l.id} type="monotone" dataKey={l.id} stroke={l.cor} strokeWidth={2} dot={{r:4,fill:l.cor}} connectNulls />)}
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </Sec>
+      <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16,marginBottom:20}}>
+        <Sec title="Mortalidade Total" icon="💀">
+          <div style={{height:195}}>
+            <ResponsiveContainer width="100%" height="100%">
+              <BarChart data={mortData.map(d => ({data:fmt(d.data),total:ativos.reduce((s,l)=>s+(Number(d[l.id])||0),0)}))}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="data" tick={{fill:C.muted,fontSize:9}} /><YAxis tick={{fill:C.muted,fontSize:9}} />
+                <Tooltip content={<TT />} />
+                <Bar dataKey="total" fill={C.red} opacity={.8} radius={[3,3,0,0]} name="Mortes" />
+              </BarChart>
+            </ResponsiveContainer>
+          </div>
+        </Sec>
+        <Sec title="Temperatura Galpão Produção" icon="🌡️">
+          <div style={{height:195}}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={mortData.map(d => ({data:fmt(d.data),max:d.tempMaxProd,min:d.tempMinProd,med:d.tempMaxProd&&d.tempMinProd?+((d.tempMaxProd+d.tempMinProd)/2).toFixed(1):null}))}>
+                <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+                <XAxis dataKey="data" tick={{fill:C.muted,fontSize:9}} /><YAxis domain={[18,36]} tick={{fill:C.muted,fontSize:9}} />
+                <Tooltip content={<TT />} />
+                <ReferenceLine y={32} stroke={C.red} strokeDasharray="4 2" label={{value:"32°",fill:C.red,fontSize:9}} />
+                <Area type="monotone" dataKey="max" stroke={C.red} fill={C.red+"22"} name="Máx(°C)" strokeWidth={2} />
+                <Area type="monotone" dataKey="med" stroke={C.accent} fill="none" name="Média(°C)" strokeWidth={1} strokeDasharray="4 2" />
+                <Area type="monotone" dataKey="min" stroke={C.blue} fill={C.blue+"11"} name="Mín(°C)" strokeWidth={2} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </Sec>
+      </div>
+      <Sec title="Entreposto — Caixas por Calibre" icon="📦">
+        <div style={{height:210}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={entData.map(d => Object.assign({}, d, {data:fmt(d.data)}))}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="data" tick={{fill:C.muted,fontSize:9}} /><YAxis tick={{fill:C.muted,fontSize:9}} />
+              <Tooltip content={<TT />} /><Legend wrapperStyle={{fontFamily:"monospace",fontSize:10}} />
+              <Bar dataKey="grande" stackId="a" fill={C.blue} name="Grande" />
+              <Bar dataKey="extra"  stackId="a" fill={C.green} name="Extra" />
+              <Bar dataKey="jumbo"  stackId="a" fill={C.accent} name="Jumbo" />
+              <Bar dataKey="medio"  stackId="a" fill={C.teal} name="Médio" />
+              <Bar dataKey="semClass" stackId="a" fill={C.red} name="S/Class." radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Sec>
+    </div>
+  );
+}
+
+// ─── COLETA ───────────────────────────────────────────────────────────────────
+// Mortalidade state — explicit fields per lote, no computed keys
+function useMortState(ativos) {
+  const init = { data:yesterday(), tempMaxProd:"", tempMinProd:"", tempMaxSolta:"", tempMinSolta:"", tempMaxRecria:"", tempMinRecria:"" };
+  ativos.forEach(l => { init["m_"+l.id] = ""; });
+  const [state, setState] = useState(init);
+  const set = (key, val) => setState(prev => upd(prev, key, val));
+  return [state, setState, set];
+}
+
+function Coleta({ lotes, onAdd, prodData, mortData, entData, racaoData, chuvaData }) {
+  const [tab, setTab] = useState("mortalidade");
+  const [toast, setToast] = useState(null);
+  const [confirm, setConfirm] = useState(null);
+  const ref = yesterday();
+  const ativos = lotes.filter(l => l.status === "Ativo");
+  const lotesProd = ativos.filter(l => l.faseManual === "PRODUÇÃO" || semanas(l.chegada) >= 18);
+
+  // ── Mortalidade state (explicit, no computed keys)
+  const initMort = () => {
+    const o = { data:ref, tempMaxProd:"", tempMinProd:"", tempMaxSolta:"", tempMinSolta:"", tempMaxRecria:"", tempMinRecria:"" };
+    ativos.forEach(l => { o["m_"+l.id] = ""; });
+    return o;
+  };
+  const [mort, setMort] = useState(initMort);
+  const [mortErr, setMortErr] = useState({});
+  const setMortField = (key, val) => setMort(prev => upd(prev, key, val));
+  const setMortErrField = (key, val) => setMortErr(prev => upd(prev, key, val));
+
+  // ── Produtividade state (explicit, no computed keys)
+  const initProd = () => {
+    const o = { data:ref };
+    lotesProd.forEach(l => { o["pf_"+l.id] = ""; o["pd_"+l.id] = ""; });
+    return o;
+  };
+  const [prod, setProd] = useState(initProd);
+  const [prodErr, setProdErr] = useState({});
+  const setProdField = (key, val) => setProd(prev => upd(prev, key, val));
+  const setProdErrField = (key, val) => setProdErr(prev => upd(prev, key, val));
+
+  // ── Entreposto state
+  const [ent, setEnt] = useState({ data:ref, medio:"", grande:"", extra:"", jumbo:"", semClass:"", liquido:"" });
+  // ── Ração state
+  const [rac, setRac] = useState({ data:ref, lote:ativos.length?ativos[0].id:"", kg:"" });
+  const [racErr, setRacErr] = useState({});
+  // ── Chuva state
+  const [chu, setChu] = useState({ data:ref, mm:"" });
+
+  function retroAlert(data, cb) {
+    const dias = diffDays(data, ref);
+    if (dias > 1) setConfirm({ msg:`Data ${dias} dias atrás. Lançamentos retroativos distorcem análises. Continuar?`, ok:() => { setConfirm(null); cb(); }, cancel:() => setConfirm(null) });
+    else cb();
+  }
+  function dupCheck(arr, data, tipo) {
+    if (arr.some(d => d.data === data)) { setToast({ msg:`Já existe ${tipo} em ${fmt(data)}`, type:"warn" }); return false; }
+    return true;
+  }
+  function valMort() {
+    const e = {};
+    ativos.forEach(l => {
+      const k = "m_"+l.id;
+      const v = mort[k];
+      if (v !== "" && (!/^\d+$/.test(String(v).trim()) || Number(v) > 500)) e[k] = "Inteiro 0–500";
+    });
+    ["tempMaxProd","tempMinProd","tempMaxSolta","tempMinSolta","tempMaxRecria","tempMinRecria"].forEach(k => {
+      const v = mort[k];
+      if (v !== "" && (isNaN(Number(v)) || Number(v) < 10 || Number(v) > 50)) e[k] = "10–50°C";
+    });
+    if (mort.tempMaxProd && mort.tempMinProd && Number(mort.tempMaxProd) < Number(mort.tempMinProd)) e.tempMaxProd = "Máx < Mín?";
+    return e;
+  }
+  function valProd() {
+    const e = {};
+    lotesProd.forEach(l => {
+      const kf = "pf_"+l.id, kd = "pd_"+l.id;
+      if (prod[kf] !== "" && (isNaN(Number(prod[kf])) || Number(prod[kf]) < 0 || Number(prod[kf]) > 100)) e[kf] = "0–100%";
+      if (prod[kd] !== "" && (isNaN(Number(prod[kd])) || Number(prod[kd]) < 0 || Number(prod[kd]) > 100)) e[kd] = "0–100%";
+    });
+    return e;
+  }
+
+  const hasRef = {
+    mortalidade:   mortData.some(d => d.data === mort.data),
+    produtividade: prodData.some(d => d.data === prod.data),
+    entreposto:    entData.some(d => d.data === ent.data),
+    racao:         racaoData.some(d => d.data === rac.data),
+    chuva:         chuvaData.some(d => d.data === chu.data),
+  };
+  const tabs = [
+    { id:"mortalidade",   label:"💀 Mortalidade",   color:C.red },
+    { id:"produtividade", label:"🥚 Produtividade", color:C.accent },
+    { id:"entreposto",    label:"📦 Entreposto",    color:C.blue },
+    { id:"racao",         label:"🌾 Ração",         color:C.green },
+    { id:"chuva",         label:"🌧️ Chuva",        color:C.purple },
+  ];
+  const tempMedProd = mort.tempMaxProd && mort.tempMinProd ? ((Number(mort.tempMaxProd)+Number(mort.tempMinProd))/2).toFixed(1) : null;
+  const tempMedSolta = mort.tempMaxSolta && mort.tempMinSolta ? ((Number(mort.tempMaxSolta)+Number(mort.tempMinSolta))/2).toFixed(1) : null;
+  const tempMedRecria = mort.tempMaxRecria && mort.tempMinRecria ? ((Number(mort.tempMaxRecria)+Number(mort.tempMinRecria))/2).toFixed(1) : null;
+  const totalCx = (Number(ent.medio)||0)+(Number(ent.grande)||0)+(Number(ent.extra)||0)+(Number(ent.jumbo)||0);
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+      {confirm && (
+        <Modal title="⚠ Lançamento Retroativo" onClose={confirm.cancel}>
+          <p style={{color:C.muted,fontSize:12,lineHeight:1.8,marginBottom:16}}>{confirm.msg}</p>
+          <div style={{display:"flex",gap:10}}>
+            <Btn color={C.red} onClick={confirm.ok}>Confirmar assim mesmo</Btn>
+            <Btn color={C.muted} variant="outline" onClick={confirm.cancel}>Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
+      <div style={{marginBottom:12,padding:"8px 12px",background:C.accent+"0d",border:`1px solid ${C.accent}33`,borderRadius:6,fontSize:11,color:C.accent,fontFamily:"monospace"}}>
+        📅 Referência padrão: <b>{fmt(ref)}</b> (ontem) — dados de hoje ({fmt(today())}) só são lançados amanhã.
+      </div>
+      <div style={{display:"flex",gap:4,marginBottom:16,flexWrap:"wrap"}}>
+        {tabs.map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{background:tab===t.id?t.color+"22":C.panel,border:`1px solid ${tab===t.id?t.color:C.border}`,borderRadius:6,padding:"6px 12px",color:tab===t.id?t.color:C.muted,fontSize:11,cursor:"pointer",fontFamily:"monospace",fontWeight:600,position:"relative"}}>
+            {t.label}
+            {hasRef[t.id] && <span style={{position:"absolute",top:-3,right:-3,width:7,height:7,borderRadius:9,background:C.green,border:`2px solid ${C.bg}`}} />}
+          </button>
+        ))}
+      </div>
+
+      {tab === "mortalidade" && (
+        <Sec title="Mortalidade + Temperatura" icon="💀">
+          <p style={{color:C.muted,fontSize:11,marginBottom:11}}>Use 0 para zero mortes. Não use "00".</p>
+          <Inp label="Data (padrão: dia anterior)" type="date" value={mort.data} required
+            onChange={v => setMortField("data", v)}
+            hint={diffDays(mort.data,ref)>1?"⚠ Lançamento retroativo":diffDays(mort.data,ref)===0?"✓ Dia anterior":undefined} />
+          <div style={{marginTop:12,marginBottom:5,fontSize:10,color:C.muted,fontFamily:"monospace",letterSpacing:1}}>MORTALIDADE POR LOTE (inteiros)</div>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:11}}>
+            {ativos.map(l => (
+              <Inp key={l.id} label={`${l.id}`} type="text" hint={l.genetica}
+                value={mort["m_"+l.id] || ""}
+                error={mortErr["m_"+l.id]}
+                onChange={v => { setMortField("m_"+l.id, v); setMortErrField("m_"+l.id, null); }} />
+            ))}
+          </div>
+          <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 13px",marginTop:11}}>
+            <div style={{fontSize:10,color:C.muted,fontFamily:"monospace",marginBottom:9}}>TEMPERATURAS — informe Máx e Mín</div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:C.text,fontFamily:"monospace",marginBottom:5}}>
+                🏭 Galpão Produção
+                {tempMedProd && <span style={{marginLeft:8,color:C.teal}}>→ Média: {tempMedProd}°C</span>}
+                {Number(mort.tempMaxProd) >= 32 && <span style={{marginLeft:8,color:C.red}}>⚠ Acima de 32°!</span>}
+              </div>
+              <G cols={2}>
+                <Inp label="Máxima (°C)" type="number" step=".1" min="10" max="50" value={mort.tempMaxProd} error={mortErr.tempMaxProd}
+                  onChange={v => { setMortField("tempMaxProd", v); setMortErrField("tempMaxProd", null); }} />
+                <Inp label="Mínima (°C)" type="number" step=".1" min="10" max="50" value={mort.tempMinProd} error={mortErr.tempMinProd}
+                  onChange={v => { setMortField("tempMinProd", v); setMortErrField("tempMinProd", null); }} />
+              </G>
+            </div>
+            <div style={{marginBottom:10}}>
+              <div style={{fontSize:11,color:C.text,fontFamily:"monospace",marginBottom:5}}>
+                🐔 Galpão Galinhas Soltas
+                {tempMedSolta && <span style={{marginLeft:8,color:C.teal}}>→ Média: {tempMedSolta}°C</span>}
+              </div>
+              <G cols={2}>
+                <Inp label="Máxima (°C)" type="number" step=".1" min="10" max="50" value={mort.tempMaxSolta}
+                  onChange={v => setMortField("tempMaxSolta", v)} />
+                <Inp label="Mínima (°C)" type="number" step=".1" min="10" max="50" value={mort.tempMinSolta}
+                  onChange={v => setMortField("tempMinSolta", v)} />
+              </G>
+            </div>
+            <div>
+              <div style={{fontSize:11,color:C.text,fontFamily:"monospace",marginBottom:5}}>
+                🐣 Galpão Recria
+                {tempMedRecria && <span style={{marginLeft:8,color:C.teal}}>→ Média: {tempMedRecria}°C</span>}
+              </div>
+              <G cols={2}>
+                <Inp label="Máxima (°C)" type="number" step=".1" min="10" max="50" value={mort.tempMaxRecria}
+                  onChange={v => setMortField("tempMaxRecria", v)} />
+                <Inp label="Mínima (°C)" type="number" step=".1" min="10" max="50" value={mort.tempMinRecria}
+                  onChange={v => setMortField("tempMinRecria", v)} />
+              </G>
+            </div>
+          </div>
+          <div style={{marginTop:13,display:"flex",gap:10,alignItems:"center"}}>
+            <Btn onClick={() => {
+              const e = valMort();
+              if (Object.keys(e).length) { setMortErr(e); setToast({ msg:"Corrija os erros", type:"err" }); return; }
+              retroAlert(mort.data, () => {
+                if (!dupCheck(mortData, mort.data, "Mortalidade")) return;
+                onAdd("mortalidade", mort);
+                setToast({ msg:"Mortalidade registrada!", type:"ok" });
+                setMort(initMort()); setMortErr({});
+              });
+            }}>Registrar Mortalidade</Btn>
+            {hasRef.mortalidade && <Badge color={C.green}>✓ Já registrado</Badge>}
+          </div>
+        </Sec>
+      )}
+
+      {tab === "produtividade" && (
+        <Sec title="Produtividade — % Postura" icon="🥚">
+          <p style={{color:C.muted,fontSize:11,marginBottom:11}}>Valores 0–100. Média Frente+Fundo calculada automaticamente.</p>
+          <Inp label="Data (padrão: dia anterior)" type="date" value={prod.data} required onChange={v => setProdField("data", v)} />
+          <div style={{marginTop:11}}>
+            {lotesProd.map(l => {
+              const kf = "pf_"+l.id, kd = "pd_"+l.id;
+              const f = prod[kf], d2 = prod[kd];
+              const med = f && d2 ? ((Number(f)+Number(d2))/2).toFixed(1) : null;
+              const sem = semanas(l.chegada);
+              const ideal = idealPos(l.genetica, sem, l.curvaCustom);
+              const diff = med && ideal ? +(med - ideal).toFixed(1) : null;
+              return (
+                <div key={l.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${l.cor}`,borderRadius:8,padding:"10px 13px",marginBottom:8}}>
+                  <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
+                    <b style={{fontFamily:"monospace",color:l.cor}}>{l.id}</b>
+                    <span style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>
+                      {ideal && `Ideal: ${ideal}%`}
+                      {med && <span style={{color:diff>0?C.green:diff<-3?C.red:C.accent,marginLeft:8,fontWeight:700}}> Média: {med}% ({diff>0?"+":""}{diff}%)</span>}
+                    </span>
+                  </div>
+                  <G cols={2}>
+                    <Inp label="Frente (%)" type="number" min="0" max="100" step=".5"
+                      value={prod[kf] || ""} error={prodErr[kf]}
+                      onChange={v => { setProdField(kf, v); setProdErrField(kf, null); }} />
+                    <Inp label="Fundo (%)"  type="number" min="0" max="100" step=".5"
+                      value={prod[kd] || ""} error={prodErr[kd]}
+                      onChange={v => { setProdField(kd, v); setProdErrField(kd, null); }} />
+                  </G>
+                </div>
+              );
+            })}
+            {lotesProd.length === 0 && <p style={{color:C.muted,fontSize:12}}>Nenhum lote em produção.</p>}
+          </div>
+          <div style={{marginTop:13,display:"flex",gap:10,alignItems:"center"}}>
+            <Btn onClick={() => {
+              const e = valProd();
+              if (Object.keys(e).length) { setProdErr(e); return; }
+              retroAlert(prod.data, () => {
+                if (!dupCheck(prodData, prod.data, "Produtividade")) return;
+                onAdd("produtividade", prod);
+                setToast({ msg:"Produtividade registrada!", type:"ok" });
+                setProd(initProd()); setProdErr({});
+              });
+            }}>Registrar Produtividade</Btn>
+            {hasRef.produtividade && <Badge color={C.green}>✓ Já registrado</Badge>}
+          </div>
+        </Sec>
+      )}
+
+      {tab === "entreposto" && (
+        <Sec title="Entreposto — Caixas por Calibre" icon="📦">
+          <p style={{color:C.muted,fontSize:11,marginBottom:11}}>Informe em <b>caixas</b>. Aos domingos não há coleta.</p>
+          <Inp label="Data (padrão: dia anterior)" type="date" value={ent.data} required onChange={v => setEnt(upd(ent,"data",v))} />
+          {isSunday(ent.data) && (
+            <div style={{marginTop:10,padding:"9px 12px",background:C.accent+"11",border:`1px solid ${C.accent}44`,borderRadius:6,fontSize:11,color:C.accent}}>
+              🔴 Domingo — sem coleta de ovos neste dia.
+            </div>
+          )}
+          <div style={{marginTop:10}}>
+            <G cols={3}>
+              <Inp label="Grande (cx)" type="number" min="0" disabled={isSunday(ent.data)} value={ent.grande||""} onChange={v => setEnt(upd(ent,"grande",v))} />
+              <Inp label="Extra (cx)"  type="number" min="0" disabled={isSunday(ent.data)} value={ent.extra||""}  onChange={v => setEnt(upd(ent,"extra",v))} />
+              <Inp label="Jumbo (cx)"  type="number" min="0" disabled={isSunday(ent.data)} value={ent.jumbo||""}  onChange={v => setEnt(upd(ent,"jumbo",v))} />
+              <Inp label="Médio (cx)"  type="number" min="0" disabled={isSunday(ent.data)} value={ent.medio||""}  onChange={v => setEnt(upd(ent,"medio",v))} />
+              <Inp label="S/Classif. (cx)" type="number" min="0" disabled={isSunday(ent.data)} value={ent.semClass||""} onChange={v => setEnt(upd(ent,"semClass",v))} />
+              <Inp label="Ovo Líquido (kg)" type="number" min="0" disabled={isSunday(ent.data)} value={ent.liquido||""} onChange={v => setEnt(upd(ent,"liquido",v))} />
+            </G>
+          </div>
+          {totalCx > 0 && !isSunday(ent.data) && (
+            <div style={{marginTop:9,padding:"7px 12px",background:C.accent+"0d",border:`1px solid ${C.accent}33`,borderRadius:5,fontSize:11,fontFamily:"monospace",color:C.accent}}>
+              Total: {totalCx} caixas {ent.liquido?`+ ${ent.liquido}kg líquido`:""}
+            </div>
+          )}
+          <div style={{marginTop:13,display:"flex",gap:10,alignItems:"center"}}>
+            <Btn disabled={isSunday(ent.data)} onClick={() => {
+              retroAlert(ent.data, () => {
+                if (!dupCheck(entData, ent.data, "Entreposto")) return;
+                onAdd("entreposto", ent);
+                setToast({ msg:"Entreposto registrado!", type:"ok" });
+                setEnt({ data:ref, medio:"", grande:"", extra:"", jumbo:"", semClass:"", liquido:"" });
+              });
+            }}>Registrar Entreposto</Btn>
+            {hasRef.entreposto && <Badge color={C.green}>✓ Já registrado</Badge>}
+          </div>
+        </Sec>
+      )}
+
+      {tab === "racao" && (
+        <Sec title="Fábrica de Ração" icon="🌾">
+          <p style={{color:C.muted,fontSize:11,marginBottom:11}}>Informe a quantidade <b>real medida</b> em kg.</p>
+          <Inp label="Data (padrão: dia anterior)" type="date" value={rac.data} required onChange={v => setRac(upd(rac,"data",v))} />
+          <div style={{marginTop:10}}>
+            <G cols={2}>
+              <Sel label="Lote de Destino" value={rac.lote} onChange={v => setRac(upd(rac,"lote",v))} options={ativos.map(l => ({ value:l.id, label:`${l.id} — ${l.genetica}` }))} />
+              <Inp label="Quantidade (kg) — valor REAL" type="number" min="100" step="50" value={rac.kg||""} placeholder="Ex: 1250" error={racErr.kg} hint="Pese a produção real" required
+                onChange={v => { setRac(upd(rac,"kg",v)); setRacErr({}); }} />
+            </G>
+          </div>
+          <div style={{marginTop:13,display:"flex",gap:10,alignItems:"center"}}>
+            <Btn onClick={() => {
+              if (!rac.kg || Number(rac.kg) <= 0) { setRacErr({ kg:"Informe a quantidade real" }); return; }
+              onAdd("racao", rac);
+              setToast({ msg:`${rac.kg}kg → ${rac.lote}`, type:"ok" });
+              setRac({ data:ref, lote:ativos.length?ativos[0].id:"", kg:"" }); setRacErr({});
+            }}>Registrar Ração</Btn>
+            {hasRef.racao && <Badge color={C.green}>✓ Já registrado</Badge>}
+          </div>
+        </Sec>
+      )}
+
+      {tab === "chuva" && (
+        <Sec title="Precipitação" icon="🌧️">
+          <p style={{color:C.muted,fontSize:11,marginBottom:11}}>Registre todo dia, mesmo 0 mm.</p>
+          <Inp label="Data (padrão: dia anterior)" type="date" value={chu.data} required onChange={v => setChu(upd(chu,"data",v))} />
+          <div style={{marginTop:10}}>
+            <Inp label="Precipitação (mm)" type="number" min="0" step=".5" value={chu.mm||""} placeholder="0" required onChange={v => setChu(upd(chu,"mm",v))} />
+          </div>
+          <div style={{marginTop:13,display:"flex",gap:10,alignItems:"center"}}>
+            <Btn onClick={() => {
+              if (chu.mm === "") { setToast({ msg:"Informe o valor (0 para sem chuva)", type:"err" }); return; }
+              if (!dupCheck(chuvaData, chu.data, "Chuva")) return;
+              onAdd("chuva", chu);
+              setToast({ msg:"Precipitação registrada!", type:"ok" });
+              setChu({ data:ref, mm:"" });
+            }}>Registrar Precipitação</Btn>
+            {hasRef.chuva && <Badge color={C.green}>✓ Já registrado</Badge>}
+          </div>
+        </Sec>
+      )}
+    </div>
+  );
+}
+
+// ─── CORRELAÇÃO POR GALPÃO ────────────────────────────────────────────────────
+function CorrelacaoMiniChart({ dados, cor, label }) {
+  if (dados.length < 2) return (
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderRadius:8,padding:"11px 13px"}}>
+      <div style={{fontSize:10,color:C.muted,fontFamily:"monospace",marginBottom:4}}>{label}</div>
+      <p style={{color:C.muted,fontSize:11}}>Dados insuficientes.</p>
+    </div>
+  );
+  const mT = dados.reduce((s,d) => s+d.temp, 0) / dados.length;
+  const mM = dados.reduce((s,d) => s+d.mort, 0) / dados.length;
+  const cov = dados.reduce((s,d) => s+(d.temp-mT)*(d.mort-mM), 0) / dados.length;
+  const sT = Math.sqrt(dados.reduce((s,d) => s+(d.temp-mT)**2, 0) / dados.length);
+  const sM = Math.sqrt(dados.reduce((s,d) => s+(d.mort-mM)**2, 0) / dados.length);
+  const r = sT && sM ? +((cov/(sT*sM)).toFixed(2)) : null;
+  const rCor = r > 0.6 ? C.red : r > 0.3 ? C.accent : C.green;
+  const rLabel = r > 0.6 ? "FORTE" : r > 0.3 ? "moderada" : "fraca";
+  return (
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${cor}`,borderRadius:8,padding:"11px 13px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+        <span style={{fontSize:11,fontFamily:"monospace",color:C.text,fontWeight:700}}>{label}</span>
+        <div style={{textAlign:"right"}}>
+          <span style={{fontSize:20,fontWeight:800,fontFamily:"monospace",color:rCor}}>{r !== null ? r : "—"}</span>
+          <span style={{fontSize:9,color:rCor,marginLeft:5,fontFamily:"monospace"}}>{rLabel}</span>
+        </div>
+      </div>
+      <div style={{height:160}}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={dados}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+            <XAxis dataKey="data" tick={{fill:C.muted,fontSize:8}} />
+            <YAxis yAxisId="t" orientation="right" domain={[18,36]} tick={{fill:cor,fontSize:8}} tickFormatter={v => v+"°"} />
+            <YAxis yAxisId="m" tick={{fill:C.muted,fontSize:8}} />
+            <Tooltip content={<TT />} />
+            <ReferenceLine yAxisId="t" y={32} stroke={C.red} strokeDasharray="3 2" />
+            <Bar yAxisId="m" dataKey="mort" fill={C.red+"55"} name="Mortes" radius={[2,2,0,0]} />
+            <Line yAxisId="t" type="monotone" dataKey="temp" stroke={cor} strokeWidth={2} dot={{r:3,fill:cor}} name="Temp.Máx(°C)" />
+          </ComposedChart>
+        </ResponsiveContainer>
+      </div>
+      <div style={{display:"flex",gap:14,marginTop:6,fontSize:10,color:C.muted,fontFamily:"monospace"}}>
+        <span>Temp média: {mT.toFixed(1)}°C</span>
+        <span>Mort média: {mM.toFixed(1)}/reg.</span>
+        <span>N={dados.length}</span>
+      </div>
+    </div>
+  );
+}
+
+function CorrelacaoGalpao({ mortData, lotes }) {
+  const ativos = lotes.filter(l => l.status === "Ativo");
+  const lotesProd   = ativos.filter(l => l.faseManual === "PRODUÇÃO" || semanas(l.chegada) >= 18);
+  const lotesRecria = ativos.filter(l => l.faseManual !== "PRODUÇÃO" && semanas(l.chegada) < 18);
+  const dadosProd = mortData.filter(d => d.tempMaxProd > 0).map(d => ({
+    data: fmt(d.data), temp: d.tempMaxProd,
+    mort: lotesProd.reduce((s,l) => s+(Number(d[l.id])||0), 0),
+  }));
+  const dadosSolta = mortData.filter(d => d.tempMaxSolta > 0).map(d => ({
+    data: fmt(d.data), temp: d.tempMaxSolta,
+    mort: ativos.reduce((s,l) => s+(Number(d[l.id])||0), 0),
+  }));
+  const dadosRecria = mortData.filter(d => d.tempMaxRecria > 0).map(d => ({
+    data: fmt(d.data), temp: d.tempMaxRecria,
+    mort: lotesRecria.reduce((s,l) => s+(Number(d[l.id])||0), 0),
+  }));
+  return (
+    <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(300px,1fr))",gap:12}}>
+      <CorrelacaoMiniChart dados={dadosProd}   cor={C.blue}   label="🏭 Galpão Produção" />
+      <CorrelacaoMiniChart dados={dadosSolta}  cor={C.teal}   label="🐔 Galpão Galinhas Soltas" />
+      <CorrelacaoMiniChart dados={dadosRecria} cor={C.purple} label="🐣 Galpão Recria" />
+    </div>
+  );
+}
+
+// ─── ANALISES ─────────────────────────────────────────────────────────────────
+function CurvaLoteCard({ lote, prodData }) {
+  const curva = lote.curvaCustom || CURVAS[lote.genetica] || [];
+  const semAtual = semanas(lote.chegada);
+  const semInicio = Math.max(18, semAtual - 16);
+  const dados = curva.filter(pt => pt[0] >= semInicio && pt[0] <= semAtual + 6).map(pt => {
+    const [s, ideal] = pt;
+    const reg = prodData.find(d => Math.abs(Math.round(diffDays(lote.chegada, d.data) / 7) - s) <= 1);
+    return { sem:"S"+s, ideal, real: reg ? (reg[lote.id] !== undefined ? reg[lote.id] : null) : null };
+  });
+  const reais = dados.filter(d => d.real !== null);
+  const med = reais.length ? reais.reduce((s,d) => s+d.real, 0) / reais.length : 0;
+  const peak = dados.length ? Math.max(...dados.map(d => d.ideal)) : 100;
+  return (
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`3px solid ${lote.cor}`,borderRadius:8,padding:"11px 13px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:6}}>
+        <b style={{fontFamily:"monospace",color:lote.cor}}>{lote.id}</b>
+        <div style={{display:"flex",gap:6}}>
+          {lote.curvaCustom && <Badge color={C.teal}>CUSTOM</Badge>}
+          {med > 0 && <Badge color={med>=peak*.97?C.green:med>=peak*.93?C.accent:C.red}>Média: {med.toFixed(1)}%</Badge>}
+        </div>
+      </div>
+      <div style={{height:150}}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={dados}>
+            <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+            <XAxis dataKey="sem" tick={{fill:C.muted,fontSize:9}} />
+            <YAxis domain={[50,100]} tick={{fill:C.muted,fontSize:9}} tickFormatter={v => v+"%"} />
+            <Tooltip content={<TT />} />
+            <Line type="monotone" dataKey="ideal" stroke={C.muted} strokeWidth={1} dot={false} name="Ideal" strokeDasharray="5 3" />
+            <Line type="monotone" dataKey="real" stroke={lote.cor} strokeWidth={2} dot={{r:4,fill:lote.cor}} connectNulls name="Real" />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  );
+}
+
+function ProjecaoCard({ lote, prodData }) {
+  const sem = semanas(lote.chegada);
+  const ideal = idealPos(lote.genetica, sem, lote.curvaCustom);
+  const hist = prodData.filter(d => d[lote.id] !== undefined).slice(-4);
+  const mediaReal = hist.length ? hist.reduce((s,d) => s+d[lote.id], 0) / hist.length : null;
+  const fator = mediaReal && ideal ? mediaReal / ideal : 1;
+  const proj = [1,2,3,4].map(w => {
+    const sf = sem + w;
+    const idF = idealPos(lote.genetica, sf, lote.curvaCustom);
+    return { sem:"+"+w+"sem", proj: idF ? +(idF*fator).toFixed(1) : null, ideal:idF };
+  });
+  return (
+    <div style={{background:C.panel,border:`1px solid ${C.border}`,borderTop:`2px solid ${lote.cor}`,borderRadius:8,padding:"11px 13px"}}>
+      <div style={{display:"flex",justifyContent:"space-between",marginBottom:7}}>
+        <b style={{fontFamily:"monospace",color:lote.cor,fontSize:12}}>{lote.id}</b>
+        <span style={{fontFamily:"monospace",fontSize:10,color:C.muted}}>fator {fator.toFixed(2)}</span>
+      </div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:5}}>
+        {proj.map(p => {
+          const pc = p.proj === null ? C.muted : p.proj >= p.ideal*0.97 ? C.green : p.proj >= p.ideal*0.93 ? C.accent : C.red;
+          return (
+            <div key={p.sem} style={{textAlign:"center",padding:"6px 2px",background:C.card,borderRadius:5,border:`1px solid ${C.border}`}}>
+              <div style={{fontSize:9,color:C.muted,fontFamily:"monospace"}}>{p.sem}</div>
+              <div style={{fontSize:14,fontWeight:800,fontFamily:"monospace",color:pc}}>{p.proj !== null ? p.proj+"%" : "—"}</div>
+              <div style={{fontSize:9,color:C.muted}}>{p.ideal}%</div>
+            </div>
+          );
+        })}
+      </div>
+      {mediaReal && <div style={{marginTop:6,fontSize:10,color:C.muted,fontFamily:"monospace"}}>Média recente: {mediaReal.toFixed(1)}% {fator<0.95?"→ ⚠ Abaixo":"→ ✓ OK"}</div>}
+    </div>
+  );
+}
+
+function Analises({ lotes, prodData, mortData }) {
+  const ativos = lotes.filter(l => l.status === "Ativo" && semanas(l.chegada) >= 18);
+  return (
+    <div>
+      <Sec title="Correlação: Temperatura × Mortalidade" icon="📈">
+        <CorrelacaoChart mortData={mortData} lotes={lotes} />
+      </Sec>
+      <Sec title="Curva Real vs Ideal por Lote" icon="📉">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(280px,1fr))",gap:12}}>
+          {ativos.map(l => <CurvaLoteCard key={l.id} lote={l} prodData={prodData} />)}
+        </div>
+      </Sec>
+      <Sec title="Projeção — Próximas 4 Semanas" icon="🔮">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(250px,1fr))",gap:11}}>
+          {ativos.map(l => <ProjecaoCard key={l.id} lote={l} prodData={prodData} />)}
+        </div>
+      </Sec>
+    </div>
+  );
+}
+
+// ─── GESTÃO DE LOTES ──────────────────────────────────────────────────────────
+function GestaoLotes({ lotes, setLotes }) {
+  const [modal, setModal] = useState(null);
+  const [toast, setToast] = useState(null);
+  const [curvaModal, setCurvaModal] = useState(null);
+  const [curvaInput, setCurvaInput] = useState("");
+  const emptyF = () => ({ id:"", chegada:"", genetica:GENETICAS[0], cor:CORES[0], status:"Ativo", faseManual:"", origId:"" });
+  const [form, setForm] = useState(emptyF());
+  const [formErr, setFormErr] = useState({});
+
+  function validar(f, isEdit) {
+    const e = {};
+    if (!f.id.trim()) e.id = "Obrigatório";
+    else if (lotes.some(l => l.id === f.id.trim() && (!isEdit || f.origId !== f.id.trim()))) e.id = "ID já existe";
+    if (!f.chegada) e.chegada = "Obrigatório";
+    return e;
+  }
+  async function salvar() {
+    const isEdit = modal !== "novo";
+    const e = validar(form, isEdit);
+    if (Object.keys(e).length) { setFormErr(e); return; }
+    try {
+      if (isEdit) {
+        const loteAtual = lotes.find(l => l.id === modal);
+        await db.collection("lotes").doc(modal).set(Object.assign({}, loteAtual, form, { faseManual:form.faseManual||null }));
+      } else {
+        const novo = { id:form.id.trim(), chegada:form.chegada, genetica:form.genetica, cor:form.cor, status:form.status, faseManual:form.faseManual||null };
+        await db.collection("lotes").doc(novo.id).set(novo);
+      }
+      setToast({ msg: isEdit ? "Lote atualizado!" : "Lote cadastrado!", type:"ok" });
+      setModal(null); setForm(emptyF()); setFormErr({});
+    } catch(err) { setToast({ msg:"Erro ao salvar: "+err.message, type:"err" }); }
+  }
+  async function toggleStatus(id) {
+    const lote = lotes.find(l => l.id === id);
+    if (!lote) return;
+    await db.collection("lotes").doc(id).update({ status: lote.status==="Ativo"?"Inativo":"Ativo" });
+  }
+  async function salvarCurva() {
+    try {
+      const linhas = curvaInput.split(/[\n,;]+/).map(s => s.trim()).filter(Boolean);
+      const curva = linhas.map(l => {
+        const pts = l.split(":");
+        if (!pts[1]) throw new Error();
+        return [parseInt(pts[0]), parseFloat(pts[1])];
+      }).filter(pt => !isNaN(pt[0]) && !isNaN(pt[1])).sort((a,b) => a[0]-b[0]);
+      if (curva.length < 2) throw new Error();
+      await db.collection("lotes").doc(curvaModal).update({ curvaCustom:curva });
+      setToast({ msg:`Curva salva (${curva.length} pontos)`, type:"ok" });
+      setCurvaModal(null); setCurvaInput("");
+    } catch {
+      setToast({ msg:"Formato inválido. Use: semana:valor por linha", type:"err" });
+    }
+  }
+
+  const ativos = lotes.filter(l => l.status === "Ativo");
+  const inativos = lotes.filter(l => l.status === "Inativo");
+  const cl = curvaModal ? lotes.find(x => x.id === curvaModal) : null;
+  const curvaAtual = cl ? (cl.curvaCustom || CURVAS[cl.genetica]) : null;
+
+  return (
+    <div>
+      {toast && <Toast msg={toast.msg} type={toast.type} onClose={() => setToast(null)} />}
+
+      {(modal === "novo" || (modal && modal !== "novo")) && (
+        <Modal title={modal==="novo"?"➕ Cadastrar Novo Lote":"✏️ Editar — "+modal} onClose={() => { setModal(null); setForm(emptyF()); setFormErr({}); }}>
+          <G cols={2}>
+            <Inp label="ID do Lote" value={form.id} error={formErr.id} required placeholder="Ex: Lote 20"
+              onChange={v => setForm(upd(form,"id",v))} />
+            <Inp label="Data de Chegada" type="date" value={form.chegada} error={formErr.chegada} required
+              onChange={v => setForm(upd(form,"chegada",v))} />
+            <Sel label="Genética" value={form.genetica} onChange={v => setForm(upd(form,"genetica",v))}
+              options={GENETICAS.map(g => ({ value:g, label:g }))} />
+            <div style={{display:"flex",flexDirection:"column",gap:4}}>
+              <label style={{fontSize:10,color:C.muted,fontFamily:"monospace",letterSpacing:1.2}}>COR DO LOTE</label>
+              <div style={{display:"flex",gap:6,flexWrap:"wrap"}}>
+                {CORES.map(c => (
+                  <div key={c} onClick={() => setForm(upd(form,"cor",c))}
+                    style={{width:26,height:26,borderRadius:6,background:c,cursor:"pointer",border:`3px solid ${form.cor===c?"#fff":"transparent"}`,boxSizing:"border-box"}} />
+                ))}
+              </div>
+            </div>
+            <Sel label="Status" value={form.status} onChange={v => setForm(upd(form,"status",v))}
+              options={[{value:"Ativo",label:"Ativo"},{value:"Inativo",label:"Inativo"}]} />
+            <Sel label="Fase Manual" value={form.faseManual||""} onChange={v => setForm(upd(form,"faseManual",v))}
+              options={[{value:"",label:"Automático"},{value:"RECRIA",label:"Forçar RECRIA"},{value:"PRODUÇÃO",label:"Forçar PRODUÇÃO"}]} />
+          </G>
+          <div style={{marginTop:16,display:"flex",gap:10}}>
+            <Btn onClick={salvar}>{modal==="novo"?"Cadastrar Lote":"Salvar Edição"}</Btn>
+            <Btn color={C.muted} variant="outline" onClick={() => { setModal(null); setForm(emptyF()); setFormErr({}); }}>Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
+
+      {curvaModal && (
+        <Modal title={`📈 Curva Ideal — ${curvaModal}`} onClose={() => { setCurvaModal(null); setCurvaInput(""); }} wide>
+          <div style={{marginBottom:12,color:C.muted,fontSize:12,lineHeight:1.7}}>Formato: <b style={{color:C.accent}}>semana:valor</b> por linha. Ex: 18:0 / 19:5 / 20:30</div>
+          <textarea value={curvaInput} onChange={e => setCurvaInput(e.target.value)}
+            placeholder={"18:0\n19:5\n20:30\n21:65\n22:82\n23:91\n..."}
+            style={{width:"100%",minHeight:160,background:C.bg,border:`1px solid ${C.border}`,borderRadius:6,padding:"10px",color:C.text,fontFamily:"monospace",fontSize:12,outline:"none",resize:"vertical",boxSizing:"border-box"}} />
+          {curvaAtual && (
+            <div style={{marginTop:10,padding:"8px 12px",background:C.card,borderRadius:6,fontSize:11,color:C.muted,fontFamily:"monospace"}}>
+              Curva {cl.curvaCustom?"CUSTOMIZADA":"PADRÃO"} — {curvaAtual.length} pontos · Semana {semanas(cl.chegada)}: ideal = <b style={{color:C.accent}}>{idealPos(cl.genetica, semanas(cl.chegada), cl.curvaCustom)}%</b>
+            </div>
+          )}
+          <div style={{marginTop:12,display:"flex",gap:10}}>
+            <Btn onClick={salvarCurva}>Salvar Curva</Btn>
+            <Btn color={C.red} variant="outline" onClick={() => {
+              db.collection("lotes").doc(curvaModal).update({ curvaCustom: firebase.firestore.FieldValue.delete() });
+              setToast({ msg:"Curva resetada para padrão", type:"ok" });
+              setCurvaModal(null); setCurvaInput("");
+            }}>Resetar para Padrão</Btn>
+            <Btn color={C.muted} variant="outline" onClick={() => { setCurvaModal(null); setCurvaInput(""); }}>Cancelar</Btn>
+          </div>
+        </Modal>
+      )}
+
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:14}}>
+        <Btn onClick={() => { setModal("novo"); setForm(emptyF()); setFormErr({}); }}>➕ Cadastrar Novo Lote</Btn>
+      </div>
+
+      <Sec title="Lotes Ativos" icon="🐔">
+        <div style={{display:"flex",flexDirection:"column",gap:8}}>
+          {ativos.map(l => {
+            const sem = semanas(l.chegada);
+            const fase = l.faseManual || (sem >= 18 ? "PRODUÇÃO" : "RECRIA");
+            const ideal = idealPos(l.genetica, sem, l.curvaCustom);
+            return (
+              <div key={l.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`4px solid ${l.cor}`,borderRadius:8,padding:"12px 16px",display:"flex",alignItems:"center",gap:12,flexWrap:"wrap"}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",alignItems:"center",gap:8,marginBottom:3}}>
+                    <b style={{fontFamily:"monospace",color:l.cor,fontSize:13}}>{l.id}</b>
+                    <Badge color={fase==="PRODUÇÃO"?C.green:C.purple}>{fase}</Badge>
+                    {l.curvaCustom && <Badge color={C.teal}>CURVA CUSTOM</Badge>}
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>{l.genetica} · {sem} semanas · Ideal: {ideal !== null ? ideal+"%" : "—"}</div>
+                </div>
+                <div style={{display:"flex",gap:6,flexShrink:0}}>
+                  <Btn sm color={C.blue} variant="outline" onClick={() => { setCurvaModal(l.id); setCurvaInput(l.curvaCustom ? l.curvaCustom.map(pt => pt[0]+":"+pt[1]).join("\n") : ""); }}>📈 Curva</Btn>
+                  <Btn sm color={C.accent} variant="outline" onClick={() => { setModal(l.id); setForm(Object.assign({}, l, { faseManual:l.faseManual||"", origId:l.id })); }}>✏️ Editar</Btn>
+                  <Btn sm color={C.red} variant="outline" onClick={() => toggleStatus(l.id)}>⏸ Desativar</Btn>
+                </div>
+              </div>
+            );
+          })}
+          {ativos.length === 0 && <p style={{color:C.muted,fontSize:12}}>Nenhum lote ativo.</p>}
+        </div>
+      </Sec>
+
+      {inativos.length > 0 && (
+        <Sec title="Lotes Inativos" icon="📂">
+          <div style={{display:"flex",flexDirection:"column",gap:7}}>
+            {inativos.map(l => (
+              <div key={l.id} style={{background:C.panel,border:`1px solid ${C.border}`,borderLeft:`4px solid ${C.muted}`,borderRadius:8,padding:"11px 15px",display:"flex",alignItems:"center",gap:12,opacity:.7,flexWrap:"wrap"}}>
+                <div style={{flex:1}}>
+                  <div style={{display:"flex",gap:8,marginBottom:3}}>
+                    <b style={{fontFamily:"monospace",color:C.muted,fontSize:12}}>{l.id}</b>
+                    <Badge color={C.muted}>INATIVO</Badge>
+                  </div>
+                  <div style={{fontSize:11,color:C.muted,fontFamily:"monospace"}}>{l.genetica} · {semanas(l.chegada)} semanas{l.encerrado?` · Encerrado: ${fmt(l.encerrado)}`:""}</div>
+                </div>
+                <div style={{display:"flex",gap:6}}>
+                  <Btn sm color={C.green} variant="outline" onClick={() => toggleStatus(l.id)}>▶ Reativar</Btn>
+                  <Btn sm color={C.accent} variant="outline" onClick={() => { setModal(l.id); setForm(Object.assign({}, l, { faseManual:l.faseManual||"", origId:l.id })); }}>✏️ Editar</Btn>
+                </div>
+              </div>
+            ))}
+          </div>
+        </Sec>
+      )}
+    </div>
+  );
+}
+
+// ─── RELATÓRIO ────────────────────────────────────────────────────────────────
+function Relatorio({ lotes, prodData, mortData, entData, chuvaData, racaoData }) {
+  const ref = yesterday();
+  const ativos = lotes.filter(l => l.status === "Ativo");
+  const lotesProd = ativos.filter(l => l.faseManual === "PRODUÇÃO" || semanas(l.chegada) >= 18);
+  const mort15 = mortData.filter(d => diffDays(d.data,ref) <= 14 && diffDays(d.data,ref) >= 0);
+  const ent30  = entData.filter(d => diffDays(d.data,ref) <= 29 && diffDays(d.data,ref) >= 0);
+  const ultM = mortData[mortData.length-1];
+  const ultP = prodData[prodData.length-1];
+  const alertTemp = ultM && ultM.tempMaxProd >= 32;
+  const alertProd = prodData.length > 0 && diffDays(ultP.data, ref) > 7;
+  const alertSolta = mortData.some(d => d.tempMaxSolta === 0);
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+        <Btn color={C.blue} onClick={() => window.print()}>🖨️ Exportar / Imprimir PDF</Btn>
+      </div>
+      <div style={{background:`linear-gradient(135deg,${C.accent}15,${C.bg})`,border:`1px solid ${C.accent}44`,borderRadius:12,padding:"17px 20px",marginBottom:18}}>
+        <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:19,color:C.accent}}>RELATÓRIO OPERACIONAL — SANTELMO ALIMENTOS</div>
+        <div style={{fontFamily:"monospace",fontSize:11,color:C.muted,marginTop:3}}>Gerado em {new Date().toLocaleDateString("pt-BR",{weekday:"long",day:"2-digit",month:"long",year:"numeric"})} · Referência: {fmt(ref)}</div>
+      </div>
+
+      <Sec title="Produtividade vs Ideal" icon="📊">
+        <div style={{overflowX:"auto"}}>
+          <table style={{width:"100%",borderCollapse:"collapse",fontFamily:"monospace",fontSize:12}}>
+            <thead><tr style={{background:C.panel}}>
+              {["Lote","Genética","Sem.","% Real","% Ideal","Diferença","Última Coleta","Dias s/ Coleta","Status"].map(h => (
+                <th key={h} style={{padding:"8px 11px",textAlign:"left",color:C.muted,fontSize:10,fontWeight:700,borderBottom:`1px solid ${C.border}`}}>{h}</th>
+              ))}
+            </tr></thead>
+            <tbody>
+              {lotesProd.map(l => {
+                const sem = semanas(l.chegada);
+                const ideal = idealPos(l.genetica, sem, l.curvaCustom);
+                const ultColeta = prodData.filter(d => d[l.id] !== undefined).slice(-1)[0];
+                const real = ultColeta ? ultColeta[l.id] : undefined;
+                const diff = real != null && ideal ? +(real - ideal).toFixed(1) : null;
+                const dc = diff > 0 ? C.green : diff < -3 ? C.red : C.accent;
+                const diasSC = ultColeta ? diffDays(ultColeta.data, ref) : null;
+                const diasColor = diasSC === null ? C.muted : diasSC > 14 ? C.red : diasSC > 7 ? C.accent : C.green;
+                return (
+                  <tr key={l.id} style={{borderBottom:`1px solid ${C.border}`}}>
+                    <td style={{padding:"8px 11px",color:l.cor,fontWeight:700}}>{l.id}</td>
+                    <td style={{padding:"8px 11px",color:C.muted,fontSize:10}}>{l.genetica}</td>
+                    <td style={{padding:"8px 11px",color:C.text}}>{sem}</td>
+                    <td style={{padding:"8px 11px",color:C.text}}>{real != null ? real+"%" : "—"}</td>
+                    <td style={{padding:"8px 11px",color:C.muted}}>{ideal != null ? ideal+"%" : "—"}</td>
+                    <td style={{padding:"8px 11px",color:dc,fontWeight:700}}>{diff !== null ? (diff>0?"+":"")+diff+"%" : "—"}</td>
+                    <td style={{padding:"8px 11px",color:C.text}}>{ultColeta ? fmt(ultColeta.data) : "—"}</td>
+                    <td style={{padding:"8px 11px",color:diasColor,fontWeight:700}}>{diasSC !== null ? diasSC+"d" : "—"}</td>
+                    <td style={{padding:"8px 11px"}}>{diff !== null && <Badge color={diff>=0?C.green:diff<-3?C.red:C.accent}>{diff>=0?"✓ OK":diff<-3?"⚠ ATENÇÃO":"~ BAIXO"}</Badge>}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Sec>
+
+      <Sec title="Mortalidade — Últimos 15 Dias" icon="💀">
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:9}}>
+          {ativos.map(l => {
+            const total = mort15.reduce((s,d) => s + (Number(d[l.id])||0), 0);
+            return (
+              <div key={l.id} style={{background:C.card,border:`1px solid ${l.cor}33`,borderTop:`2px solid ${l.cor}`,borderRadius:8,padding:"11px",textAlign:"center"}}>
+                <div style={{fontFamily:"monospace",fontWeight:700,color:l.cor,fontSize:11}}>{l.id}</div>
+                <div style={{fontSize:22,fontWeight:800,fontFamily:"monospace",color:total>15?C.red:C.text}}>{total}</div>
+                <div style={{fontSize:10,color:C.muted}}>em 15 dias</div>
+              </div>
+            );
+          })}
+        </div>
+      </Sec>
+
+      <Sec title="Entreposto — 30 Dias (Caixas)" icon="📦">
+        <div style={{height:190}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={ent30.map(d => Object.assign({}, d, {data:fmt(d.data)}))}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="data" tick={{fill:C.muted,fontSize:9}} /><YAxis tick={{fill:C.muted,fontSize:9}} />
+              <Tooltip content={<TT />} /><Legend wrapperStyle={{fontFamily:"monospace",fontSize:10}} />
+              <Bar dataKey="grande" stackId="a" fill={C.blue} name="Grande" />
+              <Bar dataKey="extra"  stackId="a" fill={C.green} name="Extra" />
+              <Bar dataKey="jumbo"  stackId="a" fill={C.accent} name="Jumbo" />
+              <Bar dataKey="medio"  stackId="a" fill={C.teal} name="Médio" radius={[3,3,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Sec>
+
+      <Sec title="Produção de Ração — por Dia e Lote" icon="🌾">
+        <div style={{height:220}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart
+              data={racaoData.filter(d => diffDays(d.data,ref)<=29 && diffDays(d.data,ref)>=0)
+                .reduce((acc, d) => {
+                  const ex = acc.find(r => r.data === fmt(d.data));
+                  if (ex) { ex[d.lote] = (ex[d.lote]||0) + Number(d.kg); }
+                  else { const nr = {data:fmt(d.data)}; nr[d.lote]=Number(d.kg); acc.push(nr); }
+                  return acc;
+                }, [])
+                .sort((a,b) => a.data.localeCompare(b.data))
+              }
+              barCategoryGap="20%"
+            >
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="data" tick={{fill:C.muted,fontSize:9}} />
+              <YAxis tick={{fill:C.muted,fontSize:9}} tickFormatter={v => v>=1000?(v/1000).toFixed(1)+"t":v+"kg"} />
+              <Tooltip content={<TT />} formatter={(v) => [v.toLocaleString()+" kg"]} />
+              <Legend wrapperStyle={{fontFamily:"monospace",fontSize:10}} />
+              {ativos.map((l, i) => (
+                <Bar key={l.id} dataKey={l.id} stackId="a" fill={l.cor} name={l.id} radius={i===ativos.length-1?[3,3,0,0]:[0,0,0,0]} />
+              ))}
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(130px,1fr))",gap:9,marginTop:12}}>
+          {ativos.map(l => {
+            const total = racaoData.filter(d => diffDays(d.data,ref)<=29 && diffDays(d.data,ref)>=0 && d.lote===l.id).reduce((s,d) => s+(Number(d.kg)||0), 0);
+            const qtdProducoes = racaoData.filter(d => diffDays(d.data,ref)<=29 && diffDays(d.data,ref)>=0 && d.lote===l.id).length;
+            return (
+              <div key={l.id} style={{background:C.card,border:`1px solid ${C.border}`,borderLeft:`3px solid ${l.cor}`,borderRadius:7,padding:"9px 11px"}}>
+                <div style={{fontFamily:"monospace",fontWeight:700,color:l.cor,fontSize:11}}>{l.id}</div>
+                <div style={{fontSize:18,fontWeight:800,fontFamily:"monospace",color:C.text,marginTop:2}}>{total.toLocaleString()}<span style={{fontSize:10,color:C.muted}}> kg</span></div>
+                <div style={{fontSize:10,color:C.muted,marginTop:2}}>{qtdProducoes} produção{qtdProducoes!==1?"ões":""}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Sec>
+
+      <Sec title="Precipitação Mensal (mm)" icon="🌧️">
+        <div style={{height:165}}>
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={[1,2,3,4,5,6,7,8,9,10,11,12].map(m => ({
+              mes:["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"][m-1],
+              mm:chuvaData.filter(c => c.data.startsWith("2026-"+String(m).padStart(2,"0"))).reduce((s,c) => s+c.mm, 0)||0,
+            }))}>
+              <CartesianGrid strokeDasharray="3 3" stroke={C.border} />
+              <XAxis dataKey="mes" tick={{fill:C.muted,fontSize:9}} /><YAxis tick={{fill:C.muted,fontSize:9}} />
+              <Tooltip content={<TT />} /><Bar dataKey="mm" fill={C.purple} name="mm" radius={[4,4,0,0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </Sec>
+
+      <Sec title="Correlação: Temperatura × Mortalidade — por Galpão" icon="📈">
+        <CorrelacaoGalpao mortData={mortData} lotes={lotes} />
+      </Sec>
+
+      <Sec title="Alertas Ativos" icon="⚠️">
+        <div style={{display:"flex",flexDirection:"column",gap:7}}>
+          {alertTemp && (
+            <div style={{background:C.red+"0a",border:`1px solid ${C.red}33`,borderLeft:`3px solid ${C.red}`,borderRadius:7,padding:"9px 13px",display:"flex",gap:9}}>
+              <span>🌡️</span>
+              <div><div style={{fontWeight:700,color:C.red,fontFamily:"monospace",fontSize:12}}>Alta temperatura detectada</div><div style={{color:C.muted,fontSize:11}}>Máxima: {ultM.tempMaxProd}°C. Acima de 32°C impacta postura.</div></div>
+            </div>
+          )}
+          {alertProd && (
+            <div style={{background:C.accent+"0a",border:`1px solid ${C.accent}33`,borderLeft:`3px solid ${C.accent}`,borderRadius:7,padding:"9px 13px",display:"flex",gap:9}}>
+              <span>📅</span>
+              <div><div style={{fontWeight:700,color:C.accent,fontFamily:"monospace",fontSize:12}}>Produtividade em atraso</div><div style={{color:C.muted,fontSize:11}}>Última coleta: {fmt(ultP.data)}. Ideal: coleta semanal.</div></div>
+            </div>
+          )}
+          {alertSolta && (
+            <div style={{background:C.purple+"0a",border:`1px solid ${C.purple}33`,borderLeft:`3px solid ${C.purple}`,borderRadius:7,padding:"9px 13px",display:"flex",gap:9}}>
+              <span>🐔</span>
+              <div><div style={{fontWeight:700,color:C.purple,fontFamily:"monospace",fontSize:12}}>Temperatura galpão soltas ausente</div><div style={{color:C.muted,fontSize:11}}>Registros com valor 0 para o galpão de galinhas soltas.</div></div>
+            </div>
+          )}
+          {!alertTemp && !alertProd && !alertSolta && <p style={{color:C.green,fontSize:12,fontFamily:"monospace"}}>✓ Nenhum alerta crítico.</p>}
+        </div>
+      </Sec>
+    </div>
+  );
+}
+
+// ─── APP ROOT ─────────────────────────────────────────────────────────────────
+function App() {
+  const [tab, setTab] = useState("dashboard");
+  const [loading, setLoading] = useState(true);
+  const [seeding, setSeeding] = useState(false);
+  const [lotes, setLotes]     = useState([]);
+  const [prodData, setProdData]   = useState([]);
+  const [mortData, setMortData]   = useState([]);
+  const [entData, setEntData]     = useState([]);
+  const [chuvaData, setChuvaData] = useState([]);
+  const [racaoData, setRacaoData] = useState([]);
+
+  useEffect(() => {
+    // ── seed on first run ────────────────────────────────────────────────────
+    async function seedIfEmpty() {
+      try {
+        const snap = await db.collection("lotes").limit(1).get();
+        if (!snap.empty) return; // already seeded
+        setSeeding(true);
+        const batch = db.batch();
+        LOTES_INIT.forEach(l => batch.set(db.collection("lotes").doc(l.id), l));
+        PROD_INIT.forEach(d => batch.set(db.collection("prodData").doc(d.data), d));
+        MORT_INIT.forEach(d => batch.set(db.collection("mortData").doc(d.data), d));
+        ENT_INIT.forEach(d => batch.set(db.collection("entData").doc(d.data), d));
+        CHUVA_INIT.forEach(d => batch.set(db.collection("chuvaData").doc(d.data), d));
+        // ração: multiple per day — use data_lote as key
+        RACAO_INIT.forEach((d, i) => {
+          const key = d.data + "_" + d.lote.replace(/ /g,"_") + "_" + i;
+          batch.set(db.collection("racaoData").doc(key), d);
+        });
+        await batch.commit();
+        setSeeding(false);
+      } catch(e) { console.error("Seed error:", e); setSeeding(false); }
+    }
+
+    seedIfEmpty();
+
+    // ── real-time listeners ──────────────────────────────────────────────────
+    const sort = (arr, key) => arr.slice().sort((a,b) => (a[key]||"").localeCompare(b[key]||""));
+    const u1 = db.collection("lotes").onSnapshot(s => setLotes(sort(s.docs.map(d=>d.data()),"id")));
+    const u2 = db.collection("prodData").onSnapshot(s => { setProdData(sort(s.docs.map(d=>d.data()),"data")); setLoading(false); });
+    const u3 = db.collection("mortData").onSnapshot(s => setMortData(sort(s.docs.map(d=>d.data()),"data")));
+    const u4 = db.collection("entData").onSnapshot(s => setEntData(sort(s.docs.map(d=>d.data()),"data")));
+    const u5 = db.collection("chuvaData").onSnapshot(s => setChuvaData(sort(s.docs.map(d=>d.data()),"data")));
+    const u6 = db.collection("racaoData").onSnapshot(s => setRacaoData(sort(s.docs.map(d=>d.data()),"data")));
+
+    return () => { u1(); u2(); u3(); u4(); u5(); u6(); };
+  }, []);
+
+  const handleAdd = useCallback(async (type, data) => {
+    const al = lotes.filter(l => l.status === "Ativo");
+    try {
+      if (type === "produtividade") {
+        const e = { data: data.data };
+        al.filter(l => l.faseManual === "PRODUÇÃO" || semanas(l.chegada) >= 18).forEach(l => {
+          const kf = "pf_"+l.id, kd = "pd_"+l.id;
+          if (data[kf] != null && data[kf] !== "" && data[kd] != null && data[kd] !== "") {
+            e[l.id] = +((Number(data[kf]) + Number(data[kd])) / 2).toFixed(1);
+          }
+        });
+        await db.collection("prodData").doc(data.data).set(e, { merge: true });
+      } else if (type === "mortalidade") {
+        const e = { data:data.data, tempMaxProd:Number(data.tempMaxProd)||0, tempMinProd:Number(data.tempMinProd)||0, tempMaxSolta:Number(data.tempMaxSolta)||0, tempMinSolta:Number(data.tempMinSolta)||0, tempMaxRecria:Number(data.tempMaxRecria)||0, tempMinRecria:Number(data.tempMinRecria)||0 };
+        al.forEach(l => { e[l.id] = Number(data["m_"+l.id]) || 0; });
+        await db.collection("mortData").doc(data.data).set(e);
+      } else if (type === "entreposto") {
+        await db.collection("entData").doc(data.data).set({ data:data.data, medio:Number(data.medio)||0, grande:Number(data.grande)||0, extra:Number(data.extra)||0, jumbo:Number(data.jumbo)||0, semClass:Number(data.semClass)||0, liquido:Number(data.liquido)||0 });
+      } else if (type === "racao") {
+        const key = data.data + "_" + data.lote.replace(/ /g,"_") + "_" + Date.now();
+        await db.collection("racaoData").doc(key).set({ data:data.data, lote:data.lote, kg:Number(data.kg) });
+      } else if (type === "chuva") {
+        await db.collection("chuvaData").doc(data.data).set({ data:data.data, mm:Number(data.mm)||0 });
+      }
+    } catch(e) { console.error("Save error:", e); alert("Erro ao salvar: " + e.message); }
+  }, [lotes]);
+
+  const nav = [
+    { id:"dashboard", label:"Dashboard", icon:"📊" },
+    { id:"coleta",    label:"Coleta",    icon:"✏️" },
+    { id:"analises",  label:"Análises",  icon:"📈" },
+    { id:"relatorio", label:"Relatório", icon:"📋" },
+    { id:"gestao",    label:"Lotes",     icon:"⚙️" },
+  ];
+  const ref = yesterday();
+  const mortReg = mortData.some(d => d.data === ref);
+
+  useEffect(() => {
+    if (!loading) {
+      const el = document.getElementById("loading-screen");
+      if (el) { el.style.transition="opacity 0.4s"; el.style.opacity="0"; setTimeout(()=>{el.style.display="none";},400); }
+    }
+  }, [loading]);
+
+  if (loading) {
+    const el = document.getElementById("loading-msg");
+    if (el) el.textContent = seeding ? "IMPORTANDO DADOS HISTÓRICOS... (primeira execução)" : "CARREGANDO...";
+    return null;
+  }
+
+  return (
+    <div style={{minHeight:"100vh",background:C.bg,color:C.text,fontFamily:"'DM Mono','Courier New',monospace"}}>
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=DM+Mono:wght@300;400;500&family=Syne:wght@700;800&display=swap');
+        *{box-sizing:border-box;margin:0;padding:0;}
+        ::-webkit-scrollbar{width:5px;height:5px;}
+        ::-webkit-scrollbar-track{background:#0a0f14;}
+        ::-webkit-scrollbar-thumb{background:#1e2832;border-radius:3px;}
+        input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;}
+        @media print{header{display:none!important;}body{background:#fff!important;color:#111!important;}}
+      `}</style>
+      <header style={{background:C.panel,borderBottom:`1px solid ${C.border}`,padding:"0 16px",display:"flex",alignItems:"center",justifyContent:"space-between",height:50,position:"sticky",top:0,zIndex:100}}>
+        <div style={{display:"flex",alignItems:"center",gap:9}}>
+          <div style={{width:28,height:28,background:C.accent+"1a",border:`1px solid ${C.accent}44`,borderRadius:5,display:"flex",alignItems:"center",justifyContent:"center",fontSize:14}}>🐔</div>
+          <div>
+            <div style={{fontFamily:"'Syne',sans-serif",fontWeight:800,fontSize:13,letterSpacing:1.5}}>SANTELMO</div>
+            <div style={{fontSize:8,color:C.muted,letterSpacing:2,marginTop:-2}}>ALIMENTOS · OPS v5</div>
+          </div>
+        </div>
+        <nav style={{display:"flex",gap:3}}>
+          {nav.map(n => (
+            <button key={n.id} onClick={() => setTab(n.id)}
+              style={{background:tab===n.id?C.accent+"1a":"transparent",border:`1px solid ${tab===n.id?C.accent+"55":"transparent"}`,borderRadius:5,padding:"5px 11px",color:tab===n.id?C.accent:C.muted,fontSize:11,cursor:"pointer",fontFamily:"monospace",fontWeight:600}}>
+              {n.icon} {n.label}
+            </button>
+          ))}
+        </nav>
+        <div style={{display:"flex",alignItems:"center",gap:8}}>
+          {!mortReg && <div style={{fontSize:10,color:C.red,fontFamily:"monospace",background:C.red+"11",border:`1px solid ${C.red}33`,borderRadius:4,padding:"3px 8px"}}>⚠ Mortalidade de {fmt(ref)} não registrada</div>}
+          <div style={{fontSize:10,color:C.muted,fontFamily:"monospace"}}>{new Date().toLocaleDateString("pt-BR",{day:"2-digit",month:"short"}).toUpperCase()}</div>
+        </div>
+      </header>
+      <main style={{maxWidth:1120,margin:"0 auto",padding:"16px 13px"}}>
+        {(tab === "dashboard" || tab === "coleta") && <ChecklistDiario prodData={prodData} mortData={mortData} entData={entData} racaoData={racaoData} chuvaData={chuvaData} />}
+        {tab === "dashboard"  && <Dashboard  lotes={lotes} prodData={prodData} mortData={mortData} entData={entData} chuvaData={chuvaData} />}
+        {tab === "coleta"     && <Coleta     lotes={lotes} onAdd={handleAdd} prodData={prodData} mortData={mortData} entData={entData} racaoData={racaoData} chuvaData={chuvaData} />}
+        {tab === "analises"   && <Analises   lotes={lotes} prodData={prodData} mortData={mortData} />}
+        {tab === "relatorio"  && <Relatorio  lotes={lotes} prodData={prodData} mortData={mortData} entData={entData} chuvaData={chuvaData} racaoData={racaoData} />}
+        {tab === "gestao"     && <GestaoLotes lotes={lotes} setLotes={setLotes} />}
+      </main>
+    </div>
+  );
+}
+
+
+    // ── Render ────────────────────────────────────────────────────────────────
+    ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+  </script>
+</body>
+</html>
